@@ -8,12 +8,12 @@ We recently performed a study to understand the impact of decreasing microbial b
 
 Here, we provide the compiled R Markdown document to reproduce the analysis presented in the manuscript, divided into 4 primary sections:
 
-* [Introduction and evaluating contaminants](./ControllingConatminants16S.html)
+* [Introduction and evaluating contaminants](./ControllingConatminants16S.Rmd)
 * Removing contaminant ASVs with decontam (this document)
-* [Removing contaminant ASVs with SourceTracker](.Analysis/ControllingConatminants16S_SourceTrackerPrep.html)
-* [Evaluating SourceTracker results](.Analysis/ControllingConatminants16S_SourceTracker.html)
+* [Removing contaminant ASVs with SourceTracker](.Analysis/ControllingConatminants16S_SourceTrackerPrep.Rmd)
+* [Evaluating SourceTracker results](.Analysis/ControllingConatminants16S_SourceTracker.Rmd)
 
-For more information about the experimental design and preprocessing of the data, see the [**Introduction and evaluating contaminants**](./ControllingConatminants16S.html) section.  
+For more information about the experimental design and preprocessing of the data, see the [**Introduction and evaluating contaminants**](./ControllingConatminants16S.Rmd) section.  
 
 ## Remove contaminant ASVs with decontam
 Decontam is an R package developed specifically to identify and remove contaminants from 16S rRNA gene sequencing experiments using a simple statistical approach. See the preprint [here](https://www.biorxiv.org/content/early/2017/11/17/221499) and tutorials [here](https://benjjneb.github.io/decontam/). 

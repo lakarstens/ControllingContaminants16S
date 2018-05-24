@@ -14,9 +14,9 @@ We recently performed a study to understand the impact of decreasing microbial b
 Here, we provide the compiled R Markdown document to reproduce the analysis presented in the manuscript, diveded into 4 primary sections:
 
 * Introduction and evaluating contaminants (this document)
-* [Removing contaminant ASVs with decontam](./ControllingConatminants16S_decontam.html)
-* [Removing contaminant ASVs with SourceTracker](./Analysis/ControllingConatminants16S_SourceTrackerPrep.html)
-* [Evaluating SourceTracker results](.Analysis/ControllingConatminants16S_SourceTracker.html)
+* [Removing contaminant ASVs with decontam](./ControllingConatminants16S_decontam.Rmd)
+* [Removing contaminant ASVs with SourceTracker](./Analysis/ControllingConatminants16S_SourceTrackerPrep.Rmd)
+* [Evaluating SourceTracker results](.Analysis/ControllingConatminants16S_SourceTracker.Rmd)
 
 ### Brief overview of the mock microbial dilution series dataset
 
@@ -288,8 +288,8 @@ save.image("mockDilutionsPrep.RData")
 This work outlines each step required for evaluating the impact of contaminants on 16S rRNA gene experiments with samples that have varying starting material. The conclusions from this analysis is that contamiant ASVs increase with decreasing starting material and lead to distorted microbial community profiles and overestimated alpha diversity measurements. 
 
 While contaminants are prevelant in low microbial biomass samples, and potentially unavoidable, all hope is not lost. There are a few computational approaches to identify and remove contaminant sequences from 16S rRNA gene sequencing data. To see how we evauated these different methods for identifying and removing contaminants from this dataset, see: 
-* [Removing contaminant ASVs with decontam](./ControllingConatminants16S_decontam.html)
-* [Removing contaminant ASVs with SourceTracker](./Analysis/ControllingConatminants16S_SourceTrackerPrep.html)
-* [Evaluating SourceTracker results](.Analysis/ControllingConatminants16S_SourceTracker.html)
+* [Removing contaminant ASVs with decontam](./ControllingConatminants16S_decontam.Rmd)
+* [Removing contaminant ASVs with SourceTracker](./Analysis/ControllingConatminants16S_SourceTrackerPrep.Rmd)
+* [Evaluating SourceTracker results](.Analysis/ControllingConatminants16S_SourceTracker.Rmd)
 
 

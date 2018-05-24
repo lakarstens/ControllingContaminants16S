@@ -1,0 +1,226 @@
+---
+title: "Controlling Contaminants with SourceTracker"
+author: "Lisa Karstens"
+date: "4/25/2018"
+output: html_document
+---
+
+### Introduction
+
+We recently performed a study to understand the impact of decreasing microbial biomass on 16S rRNA gene sequencing experiments and evaluate the current computational strategies to control for contaminants (preprint available here). 
+
+We provide the compiled R Markdown documents to reproduce the analysis presented in the manuscript, divided into 4 primary sections:
+
+* [Introduction and evaluating contaminants](./ControllingConatminants16S.html)
+* [Removing contaminant ASVs with decontam](./ControllingConatminants16S_decontam.html)
+* Removing contaminant ASVs with SourceTracker (this document)
+* [Evaluating SourceTracker results](.Analysis/ControllingConatminants16S_SourceTracker.html)
+
+Here, we provide the compiled R Markdown document to reproduce running SourceTracker for identifying and removing contaminants as presented in the manuscript. 
+
+For more information about the experimental design and preprocessing of the data, see the **Introduction and evaluating contaminants**.  
+
+### Using SourceTracker for contaminant identification and removal
+
+SourceTracker is a tool that uses a Bayesian approach to predict the proportion of an unknown experimental sample arising from known source environments. More information about SourceTracker can be found in the [manuscript](https://www.nature.com/articles/nmeth.1650). SourceTracker was initially implemented in R, which is the version used here. The sourcecode for running SourceTracker in R is available [here](https://github.com/danknights/sourcetracker). Recently, SourceTracker has be implemented and is currently being further developed in Python, which is available [here](https://github.com/biota/sourcetracker2).  
+
+We evaluated SourceTracker to identify contamiants in a 16S rRNA sequencing experiment consiting of a dilution series of a mock microbial community. SourceTracker is a bit resource intensive and can take a while to run, so the code used to run SourceTracker is presented here, but the results from running SourceTracker are available <here> for anyone not wishing to run this analysis. The analysis of the SourceTracker results are available in a separate Markdown document **Evaluating SourceTracker results**.  
+
+### Theory behind SourceTracker and its application for contaminant removal
+
+SourceTracker uses a Bayesian approach to predict the proportion of unknown samples ('sink' samples) arising from defined microbial sources ('source' samples). In theory, SourceTracker can be used to identify the proportion of experimental samples that arise from contaminants. 
+
+In order to use SourceTracker, we needed to define our source environments. For our experiment, the source environments are defined as:
+
+* Mock Community source - The undiluted mock microbial community sample served as the mock community source environemt
+* Contaminant source - Contamiant profiles were created by removing the mock microbial ASVs from the mock microbial diution series (D - D )
+* Blank countrol source - The extraction blank served as the blank control source environment
+
+The 'sink' samples that we are trying to predict the sources of are the original mock microbial community dilution series (D1 - D8). 
+
+We tested two scenarios for recovering the mock microbial community profiles from the mock microbial dilution series. For each scenario, we evaluated the use of the blank control and a combination of blank control and contaminant profiles as the source environments.
+
+**Scenario 1: a well-defined experimental environment** In the first scenario, the expected mock community profile served as a source environment, mimicking the scenario when the experimental source is well defined. 
+*Case 1* - The source environments were: Mock community source, contamiant source, blank control source
+*Case 2* - Tested if the blank control source environment was enough to classify contaminant ASVs. The source environments were: Mock community source, blank control source
+
+**Scenario 2: a poorly defined experimental environment** In the second scenario, the expected mock microbial community is unknown, and the proportion of sequences not predicted to be from the blank control or contaminant profile is the contamination-corrected profile. The second scenario is the more commonly encountered scenario, where the low microbial biomass environment that is being studied is poorly defined. 
+
+*Case 3* - The source environments were: contamiant source and blank control source
+*Case 4* - Tested if the blank control source environment was enough to classify contaminant ASVs. The source environments was the blank control source
+
+This R Markdown file loads in the result files from running **Introduction and evaluating contaminants**, preps the data for SourceTracker, and runs SourceTracker v1.01 (the R implementation, available here). You can skip this, download the resulting SourceTracker files here and skip ahead to the **Evaluation of SourceTracker results**. 
+
+### Set up the workspace
+
+To run this analysis yourself, download the supplemental material here along with the R markdown file. 
+
+```{r set workspace}
+# load libraries
+library(tidyverse)
+library(phyloseq)
+
+# save session info (packages versions loaded)
+session <- sessionInfo()
+
+# Load data
+load('mockDilutions_prep.RData')
+```
+
+This dataset includes many objects, 4 that are important for this analysis:
+* mock_ps - a phyloseq object containing all of the mock microbial dilution series
+* mock_ps_pure - a phyloseq object containing only the expected sequences from the undiluted mock microbial sample (D0)
+* contaminants_ps - a phyloseq object containing only the unexpected sequences from the mock microbial dilution series
+* blank_ps - a phyloseq object containing only the blank extraction control sample
+
+To prepare these samples for SourceTracker, we need to create a variable called SourceSink that defines if the sample should be considered a source environment or a sink environment. We do this by adding a column to each of the phyloseq object's sample_data and assigning it to source or sink. We then merge all of the phyloseq objects to create a new phyloseq object called st_ps.
+
+```{r}
+
+# create SourceSink variable for sourcetracker
+sample_data(mock_ps)$SourceSink <-'sink'
+sample_data(contaminants_ps)$SourceSink <-'source'
+sample_data(blank_ps)$SourceSink <-'source'
+sample_data(mock_ps_pure)$SourceSink <-'source'
+
+# create a phyloseq object with samples for sourcetracker
+st_ps <- merge_phyloseq(blank_ps,mock_ps,contaminants_ps,mock_ps_pure)
+
+```
+
+To use SourceTracker, we need to extract information from the st_ps phyloseq object. We are also going to clean up the workspace so that only the variables we need for sourcetracker are kept. 
+
+```{r}
+# extract information in a sourcetracker friendly format
+st_otus<-as.data.frame(st_ps@otu_table)
+taxa<-as.data.frame(st_ps@tax_table)
+metadata<-as.data.frame(st_ps@sam_data)
+metadata$Env<-metadata$SampleType
+
+# clean up the workspace
+
+# remove all variables except st_otus,  metadata, taxa, mock_taxa
+varsToKeep <- c('st_otus','metadata','taxa','mock_taxa')
+rm(list=ls()[! ls() %in% varsToKeep])
+```
+
+Next, create a function to run SourceTracker. This was modified from the example available [here](https://github.com/danknights/sourcetracker/blob/master/example.r)
+
+```{r }
+# create the runSourceTracker function\
+# modified from https://github.com/danknights/sourcetracker/blob/master/example.r 
+runSourceTracker = function(st_otus,metadat,outdir,filebase,rarefaction){
+  # extract the source environments and source/sink indices
+  train.ix <- which(metadata$SourceSink=='source')
+  test.ix <- which(metadata$SourceSink=='sink')
+  envs <- metadata$Env
+  if(is.element('Description',colnames(metadata))) desc <- metadata$Description
+  
+  #skip tuning (takes a long time), can determine if it is worth it later
+  alpha1 <- alpha2 <- 0.001
+  
+  ## Run SourceTracker 
+  # train SourceTracker on training data ('source' samples)
+  st <- sourcetracker(st_otus[train.ix,], envs[train.ix],rarefaction_depth = rarefaction)
+  # predict / estimate source proportions on the test data ('sink' samples) 
+  results <- predict(st,st_otus[test.ix,], alpha1=alpha1, alpha2=alpha2,full.results = TRUE, rarefaction_depth =rarefaction)
+  
+  ## Export results
+  # get average of full results across all runs of sourcetracker
+  res.mean <- apply(results$full.results,c(2,3,4),mean)
+  
+  # Get depth of each sample for relative abundance calculation
+  sample.depths <- apply(results$full.results[1,,,,drop=F],4,sum)
+  
+  # create directory to store the results
+  subdir <- paste(outdir,'full_results',sep='/')
+  dir.create(subdir,showWarnings=FALSE, recursive=TRUE)
+  
+  # write each environment as a separate file
+  for(i in 1:length(results$train.envs)){
+    env.name <- results$train.envs[i]
+    filename.fractions <- sprintf('%s/%s_%s_contributions.txt', subdir, filebase, env.name)
+    res.mean.i <- res.mean[i,,]
+    # handle the case where there is only one sink sample
+    if(is.null(dim(res.mean.i))) res.mean.i <- matrix(res.mean.i,ncol=1)
+    
+    # make rows be samples, columns be features
+    res.mean.i <- t(res.mean.i)
+    
+    # ensure proper names are retained
+    colnames(res.mean.i) <- colnames(st_otus)
+    rownames(res.mean.i) <- results$samplenames
+    
+    # calculate and save relative abundance
+    res.mean.i.ra <- sweep(res.mean.i,1,sample.depths,'/')
+    sink(filename.fractions)
+    cat('SampleID\t')
+    write.table(res.mean.i.ra,quote=F,sep='\t')
+    sink(NULL)
+  }
+  
+  #generate summary plots
+  if(dim(results$draws)[2] > 1) {
+    plot.types <- c('pie')
+  } else plot.types <- c('pie', 'bar')
+  envs<-metadata[rownames(results$proportions),'Env']
+  envs<-unlist(envs)
+  envs <- as.factor(envs)
+  labels = sprintf('%s_%s',envs, rownames(results$proportions))
+  plotixs <- sort(as.numeric(envs),index=TRUE)$ix
+  for(plot.type in plot.types){
+    # plot each environment separately
+    for(env in unique(envs)){
+      plotixs <- which(envs == env)
+      pdf(sprintf('%s/%s_%s_%s.pdf',outdir,filebase,plot.type,env),width=5,height=5)
+      plot(results, type=plot.type, labels=labels, include.legend=TRUE, indices=plotixs)
+      dev.off()    
+    }
+  }
+  return(results)
+}
+```
+Now we are ready to run SourceTracker. Be warned - this is a reseource intensive program. This next code chunk took 3 hours to run on my Mac laptop. 
+
+```{r }
+# Load the SourceTracker scripts
+source('sourcetracker-1.0.1/src/SourceTracker.R')
+
+# Scenario 1, Case 1 - well defined source environments
+# Run at ASV Level, rarefaction set to 30,000 reads
+rarefaction=30000
+outdir='Sourcetracker_mock_cp_b_30000'
+filebase='mock_cp_b'
+mcpb_30000_results<-runSourceTracker(st_otus,metadata,outdir,filebase,rarefaction)
+
+# Scenario 1, Case 2 - well defined experimental source environment,only blank as contaminant profile
+# change to only contamiant profiles to sink samples (so they are not source samples)
+metadata$SourceSink[metadata$SampleType == 'ContaminantProfile']<-'sink'
+outdir='Sourcetracker_mock_b_30000'
+filebase='mock_b'
+mb_30000_results<-runSourceTracker(st_otus,metadata,outdir,filebase,rarefaction)
+
+# Scenario 2, Case 1 - well defined contaminant source environments, undefined experimental environment
+# change the contamiant profiles back to a source environment
+metadata$SourceSink[metadata$SampleType == 'ContaminantProfile']<-'source'
+# change mock community profile to sink environment
+metadata$SourceSink[metadata$SampleType == 'MockCommunityProfile']<-'sink'
+outdir='Sourcetracker_cp_b_30000'
+filebase='cp_b'
+cpb_30000_results<-runSourceTracker(st_otus,metadata,outdir,filebase,rarefaction)
+
+# Scenario 2, Case 2 - only blank as contaminant profile
+# change to only contamiant profiles to sink samples (so they are not source samples)
+metadata$SourceSink[metadata$SampleType == 'ContaminantProfile']<-'sink'
+outdir='Sourcetracker_b_30000'
+filebase='b'
+b_30000_results<-runSourceTracker(st_otus,metadata,outdir,filebase,rarefaction)
+```
+
+```{r}
+# Save workspace
+save.image("mockDilutions_RunSourceTracker.RData")
+```
+
+This work outlines each step required for running the R version of SourceTracker on 16S rRNA gene experiments with samples that have varying starting material. SOurceTracker takes quite a bit of time and resources to run, so the RMarkdown file containing the analysis of the SourceTracker results are separate. The results from running this RMarkdown file are available here. 
+

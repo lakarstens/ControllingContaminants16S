@@ -10,18 +10,18 @@ We recently performed a study to understand the impact of decreasing microbial b
 
 We provide the compiled R Markdown documents to reproduce the analysis presented in the manuscript, divided into 4 primary sections:
 
-* [Introduction and evaluating contaminants](./ControllingConatminants16S.html)
-* [Removing contaminant ASVs with decontam](./ControllingConatminants16S_decontam.html)
-* [Removing contaminant ASVs with SourceTracker](.Analysis/ControllingConatminants16S_SourceTrackerPrep.html)
+* [Introduction and evaluating contaminants](./ControllingConatminants16S.Rmd)
+* [Removing contaminant ASVs with decontam](./ControllingConatminants16S_decontam.Rmd)
+* [Removing contaminant ASVs with SourceTracker](./ControllingConatminants16S_SourceTrackerPrep.Rmd)
 * Evaluating SourceTracker results (this document)
 
 Here, we provide the compiled R Markdown document to reproduce evaluating SourceTracker results for identifying and removing contaminants as presented in the manuscript. 
 
-For more information about the experimental design and preprocessing of the data, see the [**Introduction and evaluating contaminants**](./ControllingConatminants16S.html) section.  For more information about setting up and using SourceTracker, see the [**Removing contaminant ASVs with SourceTracker**](.Analysis/ControllingConatminants16S_SourceTrackerPrep.html) section. 
+For more information about the experimental design and preprocessing of the data, see the [**Introduction and evaluating contaminants**](./ControllingConatminants16S.Rmd) section.  For more information about setting up and using SourceTracker, see the [**Removing contaminant ASVs with SourceTracker**](.Analysis/ControllingConatminants16S_SourceTrackerPrep.Rmd) section. 
 
 ### Using SourceTracker for contaminant identification and removal
 
-SourceTracker was used to identify contamiants in a 16S rRNA sequencing experiment. More information about SourceTracker can be found on the SourceTracker [website](https://github.com/biota/sourcetracker2). SourceTracker is a bit resource intensive and can take a while to run, so the code used to run SourceTracker for this analysis is avaiable in a separate Markdown document [here](.Analysis/ControllingConatminants16S_SourceTrackerPrep.html). 
+SourceTracker was used to identify contamiants in a 16S rRNA sequencing experiment. More information about SourceTracker can be found on the SourceTracker [website](https://github.com/biota/sourcetracker2). SourceTracker is a bit resource intensive and can take a while to run, so the code used to run SourceTracker for this analysis is avaiable in a separate Markdown document [here](.Analysis/ControllingConatminants16S_SourceTrackerPrep.Rmd). 
 
 ### Theory behind SourceTracker and its application for contaminant removal
 

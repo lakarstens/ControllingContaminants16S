@@ -10,8 +10,8 @@ Here, we provide the compiled R Markdown document to reproduce the analysis pres
 
 * [Introduction and evaluating contaminants](./ControllingConatminants16S.Rmd)
 * Removing contaminant ASVs with decontam (this document)
-* [Removing contaminant ASVs with SourceTracker](.Analysis/ControllingConatminants16S_SourceTrackerPrep.Rmd)
-* [Evaluating SourceTracker results](.Analysis/ControllingConatminants16S_SourceTracker.Rmd)
+* [Removing contaminant ASVs with SourceTracker](.ControllingConatminants16S_SourceTrackerPrep.Rmd)
+* [Evaluating SourceTracker results](ControllingConatminants16S_SourceTracker.Rmd)
 
 For more information about the experimental design and preprocessing of the data, see the [**Introduction and evaluating contaminants**](./ControllingConatminants16S.Rmd) section.  
 
@@ -240,6 +240,6 @@ print(format(round(cp_c/(cp_c+mock_i)*100, 2), nsmall = 2))
 
 ```
 
-This work demonstrates using the frequency method implemented in decontam for identifying and removing contaminants from a 16S rRNA gene sequencing experiment. We were able to evaluate the perfomance of this method since we used a dilution series of a mock microbial community, where the expected composition of the samples are known. Decontam is one analytical method for identifying and removing contaminants from 16S rRNA gene sequencing data. We also evaluated using SourceTracker, which is documented here <add link>. 
+This work demonstrates using the frequency method implemented in decontam for identifying and removing contaminants from a 16S rRNA gene sequencing experiment. We were able to evaluate the perfomance of this method since we used a dilution series of a mock microbial community, where the expected composition of the samples are known. Decontam is one analytical method for identifying and removing contaminants from 16S rRNA gene sequencing data. We also evaluated using SourceTracker, which is documented [here](.ControllingConatminants16S_SourceTrackerPrep.Rmd). 
 
 

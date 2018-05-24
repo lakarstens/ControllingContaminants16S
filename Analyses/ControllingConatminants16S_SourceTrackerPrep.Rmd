@@ -11,10 +11,10 @@ We recently performed a study to understand the impact of decreasing microbial b
 
 We provide the compiled R Markdown documents to reproduce the analysis presented in the manuscript, divided into 4 primary sections:
 
-* [Introduction and evaluating contaminants](./ControllingConatminants16S.html)
-* [Removing contaminant ASVs with decontam](./ControllingConatminants16S_decontam.html)
+* [Introduction and evaluating contaminants](./ControllingConatminants16S.Rmd)
+* [Removing contaminant ASVs with decontam](./ControllingConatminants16S_decontam.Rmd)
 * Removing contaminant ASVs with SourceTracker (this document)
-* [Evaluating SourceTracker results](./ControllingConatminants16S_SourceTracker.html)
+* [Evaluating SourceTracker results](./ControllingConatminants16S_SourceTracker.Rmd)
 
 Here, we provide the compiled R Markdown document to reproduce running SourceTracker for identifying and removing contaminants as presented in the manuscript. 
 
@@ -222,5 +222,5 @@ b_30000_results<-runSourceTracker(st_otus,metadata,outdir,filebase,rarefaction)
 save.image("mockDilutions_RunSourceTracker.RData")
 ```
 
-This work outlines each step required for running the R version of SourceTracker on 16S rRNA gene experiments with samples that have varying starting material. SourceTracker takes quite a bit of time and resources to run, so the RMarkdown file containing the analysis of the SourceTracker results are separate. The results from running this RMarkdown file are available on Github in this repository and the code for evaluating the results is available [here](./ControllingConatminants16S_SourceTracker.html). 
+This work outlines each step required for running the R version of SourceTracker on 16S rRNA gene experiments with samples that have varying starting material. SourceTracker takes quite a bit of time and resources to run, so the RMarkdown file containing the analysis of the SourceTracker results are separate. The results from running this RMarkdown file are available on Github in this repository and the code for evaluating the results is available [here](./ControllingConatminants16S_SourceTracker.Rmd). 
 

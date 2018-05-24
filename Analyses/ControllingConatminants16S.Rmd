@@ -15,8 +15,8 @@ Here, we provide the compiled R Markdown document to reproduce the analysis pres
 
 * Introduction and evaluating contaminants (this document)
 * [Removing contaminant ASVs with decontam](./ControllingConatminants16S_decontam.Rmd)
-* [Removing contaminant ASVs with SourceTracker](./Analysis/ControllingConatminants16S_SourceTrackerPrep.Rmd)
-* [Evaluating SourceTracker results](.Analysis/ControllingConatminants16S_SourceTracker.Rmd)
+* [Removing contaminant ASVs with SourceTracker](./ControllingConatminants16S_SourceTrackerPrep.Rmd)
+* [Evaluating SourceTracker results](./ControllingConatminants16S_SourceTracker.Rmd)
 
 ### Brief overview of the mock microbial dilution series dataset
 
@@ -289,7 +289,7 @@ This work outlines each step required for evaluating the impact of contaminants 
 
 While contaminants are prevelant in low microbial biomass samples, and potentially unavoidable, all hope is not lost. There are a few computational approaches to identify and remove contaminant sequences from 16S rRNA gene sequencing data. To see how we evauated these different methods for identifying and removing contaminants from this dataset, see: 
 * [Removing contaminant ASVs with decontam](./ControllingConatminants16S_decontam.Rmd)
-* [Removing contaminant ASVs with SourceTracker](./Analysis/ControllingConatminants16S_SourceTrackerPrep.Rmd)
-* [Evaluating SourceTracker results](.Analysis/ControllingConatminants16S_SourceTracker.Rmd)
+* [Removing contaminant ASVs with SourceTracker](./ControllingConatminants16S_SourceTrackerPrep.Rmd)
+* [Evaluating SourceTracker results](./ControllingConatminants16S_SourceTracker.Rmd)
 
 

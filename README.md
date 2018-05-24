@@ -4,7 +4,7 @@ We recently performed a study to understand the impact of decreasing microbial b
 
 This repository contains the compiled R Markdown documents to reproduce the analysis presented in the manuscript, divided into 4 primary sections:
 
-* [Introduction and evaluating contaminants](./Analysis/ControllingConatminants16S.Rmd)
+* [Introduction and evaluating contaminants](./Analyses/ControllingConatminants16S.Rmd)
 * [Removing contaminant ASVs with decontam](./Analysis/ControllingConatminants16S_decontam.Rmd)
 * [Removing contaminant ASVs with SourceTracker](./Analysis/ControllingConatminants16S_SourceTrackerPrep.Rmd)
 * [Evaluating SourceTracker results](./Analysis/ControllingConatminants16S_SourceTracker.Rmd)

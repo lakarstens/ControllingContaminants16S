@@ -4,7 +4,6 @@ author: "Lisa Karstens"
 date: "4/25/2018"
 output: html_document
 ---
-
 ### Introduction
 
 We recently performed a study to understand the impact of decreasing microbial biomass on 16S rRNA gene sequencing experiments and evaluate the current computational strategies to control for contaminants (preprint available here). 
@@ -33,7 +32,7 @@ SourceTracker uses a Bayesian approach to predict the proportion of unknown samp
 In order to use SourceTracker, we needed to define our source environments. For our experiment, the source environments are defined as:
 
 * Mock Community source - The undiluted mock microbial community sample served as the mock community source environemt
-* Contaminant source - Contamiant profiles were created by removing the mock microbial ASVs from the mock microbial diution series (D - D )
+* Contaminant source - Contamiant profiles were created by removing the mock microbial ASVs from the mock microbial diution series.
 * Blank countrol source - The extraction blank served as the blank control source environment
 
 The 'sink' samples that we are trying to predict the sources of are the original mock microbial community dilution series (D1 - D8). 

@@ -63,7 +63,7 @@ library(phyloseq)
 session <- sessionInfo()
 
 # Load data
-load('mockDilutions_prep.RData')
+load('mockDilutionsPrep.RData')
 ```
 
 This dataset includes many objects, 4 that are important for this analysis:

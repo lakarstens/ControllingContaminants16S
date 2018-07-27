@@ -10,7 +10,7 @@ Here, we provide the compiled R Markdown document to reproduce the analysis pres
 
 * [Introduction and evaluating contaminants](./ControllingConatminants16S.Rmd)
 * Removing contaminant ASVs with decontam (this document)
-* [Removing contaminant ASVs with SourceTracker](.ControllingConatminants16S_SourceTrackerPrep.Rmd)
+* [Removing contaminant ASVs with SourceTracker](./ControllingConatminants16S_SourceTrackerPrep.Rmd)
 * [Evaluating SourceTracker results](ControllingConatminants16S_SourceTracker.Rmd)
 
 For more information about the experimental design and preprocessing of the data, see the [**Introduction and evaluating contaminants**](./ControllingConatminants16S.Rmd) section.  

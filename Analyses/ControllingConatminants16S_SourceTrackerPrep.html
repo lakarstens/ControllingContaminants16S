@@ -130,10 +130,10 @@ $(document).ready(function () {
 <p>We recently performed a study to understand the impact of decreasing microbial biomass on 16S rRNA gene sequencing experiments and evaluate the current computational strategies to control for contaminants (preprint available here).</p>
 <p>We provide the compiled R Markdown documents to reproduce the analysis presented in the manuscript, divided into 4 primary sections:</p>
 <ul>
-<li>Introduction and evaluating contaminants</li>
-<li>Removing contaminant ASVs with decontam</li>
+<li><a href="./ControllingConatminants16S.html">Introduction and evaluating contaminants</a></li>
+<li><a href="./ControllingConatminants16S_decontam.html">Removing contaminant ASVs with decontam</a></li>
 <li>Removing contaminant ASVs with SourceTracker (this document)</li>
-<li>Evaluating SourceTracker results</li>
+<li><a href="https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingConatminants16S_SourceTracker.html">Evaluating SourceTracker results</a></li>
 </ul>
 <p>Here, we provide the compiled R Markdown document to reproduce running SourceTracker for identifying and removing contaminants as presented in the manuscript.</p>
 <p>For more information about the experimental design and preprocessing of the data, see the <strong>Introduction and evaluating contaminants</strong>.</p>
@@ -187,7 +187,7 @@ sample_data(mock_ps)$SourceSink &lt;-'sink'
 sample_data(contaminants_ps)$SourceSink &lt;-'source'
 sample_data(blank_ps)$SourceSink &lt;-'source'
 sample_data(mock_ps_pure)$SourceSink &lt;-'source'
-# change the SampleType and sample_name of the pure mock microbial community sample 
+# change the SampleType and sample_name of the pure mock microbial community sample
 sample_data(mock_ps_pure)$SampleType &lt;-'MockCommunityProfile'
 sample_names(mock_ps_pure) &lt;-paste('mc',sample_names(mock_ps_pure),sep = '_')
 
@@ -205,34 +205,34 @@ metadata$Env&lt;-metadata$SampleType
 varsToKeep &lt;- c('st_otus','metadata','taxa')
 rm(list=ls()[! ls() %in% varsToKeep])</code></pre>
 <pre class="r"><code># create the runSourceTracker function\
-# modified from https://github.com/danknights/sourcetracker/blob/master/example.r 
+# modified from https://github.com/danknights/sourcetracker/blob/master/example.r
 runSourceTracker = function(st_otus,metadat,outdir,filebase,rarefaction){
   # extract the source environments and source/sink indices
   train.ix &lt;- which(metadata$SourceSink=='source')
   test.ix &lt;- which(metadata$SourceSink=='sink')
   envs &lt;- metadata$Env
   if(is.element('Description',colnames(metadata))) desc &lt;- metadata$Description
-  
+
   #skip tuning (takes a long time), can determine if it is worth it later
   alpha1 &lt;- alpha2 &lt;- 0.001
-  
-  ## Run SourceTracker 
+
+  ## Run SourceTracker
   # train SourceTracker on training data ('source' samples)
   st &lt;- sourcetracker(st_otus[train.ix,], envs[train.ix],rarefaction_depth = rarefaction)
-  # predict / estimate source proportions on the test data ('sink' samples) 
+  # predict / estimate source proportions on the test data ('sink' samples)
   results &lt;- predict(st,st_otus[test.ix,], alpha1=alpha1, alpha2=alpha2,full.results = TRUE, rarefaction_depth =rarefaction)
-  
+
   ## Export results
   # get average of full results across all runs of sourcetracker
   res.mean &lt;- apply(results$full.results,c(2,3,4),mean)
-  
+
   # Get depth of each sample for relative abundance calculation
   sample.depths &lt;- apply(results$full.results[1,,,,drop=F],4,sum)
-  
+
   # create directory to store the results
   subdir &lt;- paste(outdir,'full_results',sep='/')
   dir.create(subdir,showWarnings=FALSE, recursive=TRUE)
-  
+
   # write each environment as a separate file
   for(i in 1:length(results$train.envs)){
     env.name &lt;- results$train.envs[i]
@@ -240,14 +240,14 @@ runSourceTracker = function(st_otus,metadat,outdir,filebase,rarefaction){
     res.mean.i &lt;- res.mean[i,,]
     # handle the case where there is only one sink sample
     if(is.null(dim(res.mean.i))) res.mean.i &lt;- matrix(res.mean.i,ncol=1)
-    
+
     # make rows be samples, columns be features
     res.mean.i &lt;- t(res.mean.i)
-    
+
     # ensure proper names are retained
     colnames(res.mean.i) &lt;- colnames(st_otus)
     rownames(res.mean.i) &lt;- results$samplenames
-    
+
     # calculate and save relative abundance
     res.mean.i.ra &lt;- sweep(res.mean.i,1,sample.depths,'/')
     sink(filename.fractions)
@@ -255,7 +255,7 @@ runSourceTracker = function(st_otus,metadat,outdir,filebase,rarefaction){
     write.table(res.mean.i.ra,quote=F,sep='\t')
     sink(NULL)
   }
-  
+
   #generate summary plots
   if(dim(results$draws)[2] &gt; 1) {
     plot.types &lt;- c('pie')
@@ -271,7 +271,7 @@ runSourceTracker = function(st_otus,metadat,outdir,filebase,rarefaction){
       plotixs &lt;- which(envs == env)
       pdf(sprintf('%s/%s_%s_%s.pdf',outdir,filebase,plot.type,env),width=5,height=5)
       plot(results, type=plot.type, labels=labels, include.legend=TRUE, indices=plotixs)
-      dev.off()    
+      dev.off()
     }
   }
   return(results)

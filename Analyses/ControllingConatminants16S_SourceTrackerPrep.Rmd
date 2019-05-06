@@ -101,6 +101,7 @@ metadata$Env<-metadata$SampleType
 # remove all variables except st_otus,  metadata, taxa, mock_taxa
 varsToKeep <- c('st_otus','metadata','taxa','mock_taxa')
 rm(list=ls()[! ls() %in% varsToKeep])
+save(mock_taxa,file= "mock_taxa.RData")
 ```
 
 Next, create a function to run SourceTracker. This was modified from the example available [here](https://github.com/danknights/sourcetracker/blob/master/example.r)

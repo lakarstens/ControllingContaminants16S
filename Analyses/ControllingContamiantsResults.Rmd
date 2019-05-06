@@ -1,0 +1,542 @@
+---
+title: "ComparingResults"
+author: "Lisa Karstens"
+date: "3/15/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+This RMarkdown file documents the analyses that are presented in 
+
+
+
+
+## Setup workspace 
+ - Load libraries used in this analysis
+ - Load the results workspace from each contaminant removal method
+
+```{r}
+# load libraries
+library(tidyr)
+library(dplyr)
+library(kableExtra)
+library(ggplot2)
+library(ggpubr)
+
+load('results_filtering.RData')
+load('results_decontam.RData')
+load('results_sourcetracker.RData')
+```
+
+This loaded a LOT of data! Each method that was evaluated has its own results variable. The method used is indicated in the variable name:
+
+| Variable name        | Method            | Parameter changed  |
+| -------------------- | ----------------  | ------------------ |
+| results_blank        | negative control  | none               |
+| results_filter_001   | abundance filter  | abundance < 0.01 % removed |
+| results_filter_01    | abundance filter  | abundance < 0.10 % removed |
+| results_filter_1     | abundance filter    | abundance < 1.00 % removed |
+| results_decontam_0_1 | decontam frequency  | threshold = 0.1            |
+| results_decontam_0_2 | decontam frequency  | threshold = 0.2            |
+| results_decontam_0_3 | decontam frequency  | threshold = 0.3            |
+| results_decontam_0_4 | decontam frequency  | threshold = 0.4            |
+| results_decontam_0_5 | decontam frequency  | threshold = 0.5            |
+| results_st_sc1_case1 | SourceTracker       | Scenario 1, case 1         |
+| results_st_sc1_case2 | SourceTracker       | Scenario 1, case 2         |
+| results_st_sc2_case1 | SourceTracker       | Scenario 2, case 1         |
+| results_st_sc2_case2 | SourceTracker       | Scenario 2, case 2         |
+
+ All of these objects have the same overall structure, but a few modifications are needed to make everything work together (and look nice).  
+
+## Modifications
+We need to make a few adjustments to the result dataframes to make them easier to manage, summarize, and use for analysis.
+
+These changes are documented as comments. 
+
+
+```{r }
+# Change the method in results_original to better match terminology used with other methods. (current is "Original Data")
+results_original$method <- 'Uncorrected Results'
+
+# Add prevalence to the original data and expected data (for plotting)
+results_original$prevalence <- results_filter_0_1$prevalence
+results_expected$prevalence <- results_filter_0_1$prevalence
+```
+
+## Combine data
+
+Working with the results in individual variables is probably do-able, but likely a headache. We will save ourselves by combining all the results_* objects into one object called results_all. This was kind of done in a brute force way, if anyone has suggestions to do this more elegantly, please share! 
+
+We also have a few modifications to the results_all data frame that to make the data cleaner/easier to work with down the line. 
+
+```{r }
+# create massive data table with all results
+results_all <- bind_rows(results_original,results_expected, results_blank, results_decontam_0_1,results_decontam_0_2,results_decontam_0_3, results_decontam_0_4, results_decontam_0_5, results_filter_0_01, results_filter_0_1, results_filter_1, results_st_sc1_case1, results_st_sc1_case2,results_st_sc2_case1, results_st_sc2_case2 )
+
+# change 'Blank control removal' to 'Negative control filter' to reflect the manuscript
+results_all <- results_all %>%
+  mutate(method = recode_factor(method,`Blank control removal`= 'Negative control filter'))
+
+# change NAs to 0 (confrimed that NAs are only due to ASVs removed from blank control removal)
+results_all[is.na(results_all)] <- 0
+
+# resubset results_blank so it has all expected ASVs (ASVs that are not represented in the data set are now 0)
+results_blank <- results_all %>%
+  filter(method == 'Negative control filter')
+
+# reorder to be contistent with the rest of the resulst file 
+## probably to figure out how to do this better
+results_blank <- results_blank[,c(17,18,1:14,19:22,15,16)]
+
+# order the methods 
+results_all$method <- factor(results_all$method, levels = c("Uncorrected Results", "Expected Results" ,"Negative control filter", "Abundance filter, 0.01","Abundance filter, 0.1", "Abundance filter, 1", "Decontam frequency, thr =0.1", "Decontam frequency, thr =0.2", "Decontam frequency, thr =0.3", "Decontam frequency, thr =0.4", "Decontam frequency, thr =0.5", "SourceTracker, scenario 1 case 1", "SourceTracker, scenario 1 case 2","SourceTracker, scenario 2 case 1", "SourceTracker, scenario 2 case 2"))
+
+# create a column for contaminant removal method type
+results_all <- results_all %>%  mutate(method_type = gsub(',.*', '', method))
+
+# order the method types
+results_all$method_type <- factor(results_all$method_type, levels = c("Uncorrected Results", "Expected Results" ,"Negative control filter", "Abundance filter", "Decontam frequency","SourceTracker"))
+
+```
+
+## Create subsets of the results
+The results_all variable contains all of our results in one nice organized data.frame. However, this is not the best format for everything.
+
+Here, we subset the data into
+ 1. results_asv_long  - This variable has only the ASV abuandance and associated data in long format to make it easy to work with ggplot et al.  
+ 2. results_limited - This variable has only a subset of samples spanning low, moderate, and high levels of contaminants (represented by D3, D6, and D8)
+ 3. results_asv_limited_long - This variable has ony the ASV abundance with associated data from a subset of dilution series samples and is in long format
+ 4. exp_uncor_data - this variable has the results for the orginal uncorrected data and the expected results if our contamiant removal was perfect. 
+ 
+```{r }
+
+# Create a pretty subset of ASV-only data for plotting
+results_asv_long <- results_all %>% 
+  select(contains("ASV_"),sample_names, method, method_type) %>%
+  gather(key = 'ASV',value = 'Abundance', -sample_names, -method, - method_type)
+
+# Create a small subset of the result data representing low, moderate, and high levels of contaminants for plotting 
+results_limited <- results_all %>%
+  filter(sample_names %in% c('D3','D6','D8'))
+
+results_asv_limited_long <-  results_limited %>%
+  select(contains("ASV_"),sample_names, method, method_type) %>%
+gather(key = 'ASV',value = 'Abundance', -sample_names, -method, - method_type)
+
+# subset out the expected and uncorrected data
+exp_uncor_data <- results_all %>% filter(method %in% c('Expected Results', 'Uncorrected Results')) %>%
+  select(Observed, InvSimpson, Shannon,method, method_type, sample_names, prevalence) %>%
+  gather(key = 'alpha_diversity_measure',value = 'Value', -sample_names, -method, - method_type, - prevalence)
+
+```
+
+# Summarize results
+
+We wanted to succintly be able to evaluate the performance of each method and compare across methods. There are many ways to do this, we chose to use a classification scheme and evaluate performance based on common classification metrics which are commonly used and easy to interpret such as accuracy.
+
+Accuracy measures the proportion of classifications that were correct. In our case, this is the number of ASVs correctly classified as contaminant ASVs (True Positives) AND number of ASVs correctly classified as mock community ASVs (True Negatives).
+
+We summarized how accurate each method was by plotting the accuracy by the prevalence of contaminant ASVs (in the orginal sample) for each method. 
+
+
+```{r fig.width=10, fig.height=4}
+# Figure 4 - Accuracy faceted by method type (in manuscript)
+color_palette <- c(`1` ="#3182bd", `2` ="#fd8d3c" , `3` = "#d95f02", `4` =  "#a63603", `5` =  "#bcbddc" ,`6` = "#9e9ac8", `7`= "#807dba", `8` ="#6a51a3" , `9` = "#4a1486", `10`=  "#99d8c6", `12` = "#66c2a4", `13` ="#2ca25f", `14` = "#006d2c")
+
+results_all %>% filter (method_type %in% c('Negative control filter','Abundance filter','Decontam frequency','SourceTracker')) %>%
+ggplot(., aes(x = prevalence, y = accuracy, color = method)) +
+  geom_line() + geom_point() + facet_grid(~method_type) +
+  theme(legend.position = "right", legend.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        plot.title = element_text(size = 14),
+        strip.text.x = element_text(size = 14)) + 
+        scale_color_manual(values = unname(color_palette)) +
+        labs(x = "Contaminant Prevalence", y = "Accuracy")
+
+
+```
+
+From this graph, we see that the negative control filter performed poorly regardless of the level of contaminants. All other methods worked well (with an accuracy near 1) for low levels of contaminants (less than 5% contaminant ASVs). All methods start declining once the amount of contaminants is greater than 20%, though the sourcetracker method with well-defined experimental environments, abundance filter of 1%, and decontam with a threshold of 0.5 work the best. 
+
+
+## Sensitivity
+We also evaluated the ability of each method to predict contaminants correctly by measuring the sensitivity of each method.  
+
+
+```{r fig.width=10, fig.height=4}
+# Sensitivity (not in manuscript)
+results_all %>% filter (method_type %in% c('Negative control filter','Abundance filter','Decontam frequency','SourceTracker')) %>%
+ggplot(., aes(x = prevalence, y = sensitivity, color = method)) +
+  geom_line() + geom_point() + facet_grid(~method_type) +
+  theme(legend.position = "right", legend.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        plot.title = element_text(size = 14),
+        strip.text.x = element_text(size = 14)) +
+        scale_color_manual(values = unname(color_palette))
+
+
+```
+
+In addition to calculating classification metrics, we also evaluated the effect of removing the contamaint ASVs on the summary metrics typically used in microbiome studies - alpha diversity metrics such as the number of Observed ASVs, Shannon Diversity, and Inverse Simpson indices. 
+
+Alpha diversity measures
+```{r fig.width=10, fig.height=4}
+# Alpha diversity dataframe
+results_all_alpha <- results_all %>% filter (method_type %in% c('Expected Results', 'Uncorrected Results','Negative control filter','Abundance filter','Decontam frequency','SourceTracker')) %>%
+  select(Observed, InvSimpson, Shannon,method, method_type, sample_names, prevalence) %>%
+  gather(key = 'alpha_diversity_measure',value = 'Value', -sample_names, -method, - method_type, - prevalence) %>%
+  mutate(alpha_diversity_measure = factor(alpha_diversity_measure, levels = c('Observed', 'InvSimpson', 'Shannon')))
+
+
+# Figure 2 - Alpha diversity plots for expected and uncorrected results 
+results_all_alpha %>% filter (method_type %in% c('Expected Results', 'Uncorrected Results')) %>%
+ggplot(., aes(x = sample_names, y = Value, shape = method)) +
+   geom_point() + facet_wrap(~alpha_diversity_measure, scales = "free_y") +
+  theme(legend.position = "right", legend.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 16),
+        plot.title = element_text(size = 16),
+        strip.text.x = element_text(size = 14)) 
+```
+
+From the above plot, we can see that leaving contaminants unaccounted for can lead to drastically inflated values of alpha diversity. We also evaluated the alpha diversity measures after removing contmainants (Supplemental Figure 2). 
+
+```{r fig.width=10, fig.height=4}
+
+# Alpha diversity for all (supplemental)
+results_all_alpha %>% filter (method_type %in% c('Negative control filter','Abundance filter','Decontam frequency','SourceTracker')) %>%
+  filter(alpha_diversity_measure == 'Observed') %>%
+ggplot(., aes(x = sample_names, y = Value, color = method)) +
+  geom_point() + facet_wrap(~method_type, ncol = 6) +
+  theme(legend.position = "right", legend.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        plot.title = element_text(size = 12),
+        strip.text.x = element_text(size = 12)) +
+        scale_color_manual(values = unname(color_palette))
+
+results_all_alpha %>% filter (method_type %in% c('Negative control filter','Abundance filter','Decontam frequency','SourceTracker')) %>%
+  filter(alpha_diversity_measure == 'InvSimpson') %>%
+ggplot(., aes(x = sample_names, y = Value, color = method)) +
+  geom_point() + facet_wrap(~method_type, ncol = 4) +
+  theme(legend.position = "right", legend.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        plot.title = element_text(size = 12),
+        strip.text.x = element_text(size = 12)) +
+        scale_color_manual(values = unname(color_palette))
+
+
+
+results_all_alpha %>% filter (method_type %in% c('Negative control filter','Abundance filter','Decontam frequency','SourceTracker')) %>%
+  filter(alpha_diversity_measure == 'Shannon') %>%
+ggplot(., aes(x = sample_names, y = Value, color = method)) +
+  geom_point() + facet_wrap(~method_type, ncol = 4) +
+  theme(legend.position = "right", legend.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        plot.title = element_text(size = 12),
+        strip.text.x = element_text(size = 12)) +
+        scale_color_manual(values = unname(color_palette))
+
+
+```
+
+### Representative result plots (Figure 5)
+
+```{r fig.width=8, fig.height=4}
+# representative
+results_asv_limited_long %>% filter(ASV == 'ASV_1') %>% 
+filter (method_type %in% c('Abundance filter','Decontam frequency','SourceTracker', 'Negative control filter')) %>%
+ ggplot(., aes(x = method, y = Abundance, fill = method)) +   geom_bar(stat = 'identity') + facet_wrap(~sample_names , ncol = 9) + theme(axis.text.x = element_text(angle = 90, hjust = 1))  + ylim(0,35) +   scale_fill_manual(values = unname(color_palette)) +
+  geom_hline(data = results_asv_limited_long %>% filter(method %in% c('Expected Results'), ASV == 'ASV_1'), aes(yintercept = Abundance, linetype ="Expected Results*"),  show.legend = TRUE, color = 'black') +
+  theme(legend.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 16),
+        plot.title = element_text(size = 16),
+        strip.text.x = element_text(size = 14))
+
+# representative
+results_asv_limited_long %>% filter(ASV == 'ASV_2') %>% 
+filter (method_type %in% c('Abundance filter','Decontam frequency','SourceTracker', 'Negative control filter')) %>%
+ ggplot(., aes(x = method, y = Abundance, fill = method)) +   
+  geom_bar(stat = 'identity') + facet_wrap(~sample_names , ncol = 9) + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))  + ylim(0,30) + 
+  scale_fill_manual(values = unname(color_palette)) +
+  geom_hline(data = results_asv_limited_long %>% filter(method %in% c('Expected Results'), ASV == 'ASV_2'), aes(yintercept = Abundance, linetype ="Expected Results*"),  show.legend = TRUE, color = 'black') +
+  theme(legend.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 16),
+        plot.title = element_text(size = 16),
+        strip.text.x = element_text(size = 14))
+
+# representative
+results_limited %>% 
+filter (method_type %in% c('Abundance filter','Decontam frequency','SourceTracker', 'Negative control filter')) %>%
+ggplot(., aes(x = method, y = InvSimpson, fill = method) )+   geom_bar( stat = "identity") +  facet_wrap(~sample_names , ncol = 9) + theme(axis.text.x = element_text(angle = 90, hjust = 1))  + scale_fill_manual(values = unname(color_palette)) + geom_hline(data = results_limited %>% filter(method %in% c('Expected Results')), aes(yintercept = InvSimpson, linetype ="Expected Results*"),  show.legend = TRUE, color = 'black') +
+  theme(legend.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 16),
+        plot.title = element_text(size = 16),
+        strip.text.x = element_text(size = 14))
+
+
+```
+
+## Classification Plot (Figure 3)
+
+```{r fig.width=10, fig.height=8}
+library(gtable)  
+library(grid)
+customPalette <- c('#969696','#bdbdbd', '#d6604d', '#4393c3')
+
+### Individual plots for publication
+  # Filter methods
+  classification_data <- results_all %>% 
+    mutate(method = plyr::revalue(method, c("Uncorrected Results" = "A. No filter", "Expected Results" = "Expected Results",  "Negative control filter" = "B. Negative control filter", "Abundance filter, 0.01"  = "C. Abundance filter, 0.01" , "Abundance filter, 0.1" = "D. Abundance filter, 0.1" ,"Abundance filter, 1"  = "E. Abundance filter, 1.0" , "Decontam frequency, thr =0.1" = "F. Threshold = 0.1", "Decontam frequency, thr =0.2" = "G. Threshold = 0.2", "Decontam frequency, thr =0.3" = "H. Threshold = 0.3",  "Decontam frequency, thr =0.4" = "I. Threshold = 0.4", "Decontam frequency, thr =0.5" = "J. Threshold = 0.5" ,  "SourceTracker, scenario 1 case 1" =  "K. Scenario 1, case 1", "SourceTracker, scenario 1 case 2" = "L. Scenario 1, case 2", "SourceTracker, scenario 2 case 1" =  "M. Scenario 2, case 1", "SourceTracker, scenario 2 case 2" =  "N. Scenario 2, case 2")))
+  
+  
+  long_profile <- classification_data %>%
+    filter(method_type %in% c('Uncorrected Results', 'Abundance filter', 'Negative control filter')) %>%
+  select(true_pos, true_neg, false_pos, false_neg, sample_names, method, method_type) %>%
+    gather(key = 'SequenceClass',value = 'Abundance', -sample_names, -method, - method_type)
+
+  # Figures
+  classificationPlot_filter <- ggplot(long_profile, aes(x = sample_names, y = Abundance)) + facet_wrap(~method, ncol = 5) + 
+    geom_col(aes(fill = SequenceClass), width = 0.7, position = position_fill())  +
+    scale_fill_manual(values=customPalette, ) + theme(text = element_text(size=14)) +
+    labs(x = NULL, y = 'Proportion of Reads') +
+       theme(legend.position = "none", 
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12),
+        plot.title = element_text(size = 18))
+ # Decontam methods
+  long_profile <- classification_data %>%
+  filter(method_type %in% c('Decontam frequency')) %>%
+  select(true_pos, true_neg, false_pos, false_neg, sample_names, method, method_type) %>%
+  gather(key = 'SequenceClass',value = 'Abundance', -sample_names, -method, - method_type)
+
+  # Figures
+  classificationPlot_decontam <- ggplot(long_profile, aes(x = sample_names, y = Abundance)) + facet_wrap(~method, ncol = 5) + 
+    geom_col(aes(fill = SequenceClass), width = 0.7, position = position_fill())  +
+    scale_fill_manual(values=customPalette) + theme(text = element_text(size=14)) +
+    labs(x = NULL, y = 'Proportion of Reads') +
+       theme(legend.position = "none",
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12),
+        plot.title = element_text(size = 18))
+  
+  # SourceTracker
+  long_profile <- classification_data %>%
+  filter(method_type %in% c('SourceTracker')) %>%
+  select(true_pos, true_neg, false_pos, false_neg, sample_names, method, method_type) %>%
+  gather(key = 'SequenceClass',value = 'Abundance', -sample_names, -method, - method_type)
+
+  # Figures
+  classificationPlot_sourcetracker <- ggplot(long_profile, aes(x = sample_names, y = Abundance)) + facet_wrap(~method, ncol = 4) + 
+    geom_col(aes(fill = SequenceClass), width = 0.7, position = position_fill())  +
+    scale_fill_manual(values=customPalette, labels = c("Mock community (incorrect)","Contaminants (incorrect)", "Mock community (correct)", "Contaminants (correct)")) + theme(text = element_text(size=14)) +
+    labs(x = "Sample", y = 'Proportion of Reads') +
+       theme(legend.position = "right", 
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12),
+        plot.title = element_text(size = 18))
+
+
+# define text for header 
+header_label = "Decontam frequency method"
+
+# Get the ggplot grob
+z <- ggplotGrob(classificationPlot_decontam)
+
+# Get the positions of the strips in the gtable: t = top
+posT <- subset(z$layout, grepl("strip-t", name), select = t:r)
+
+# and a new row on top of plot
+height <- z$heights[min(posT$t)]  # height of current top strips
+z <- gtable_add_rows(z, height, min(posT$t)-1)
+
+# Construct the new strip grobs
+stripT <- gTree(name = "Strip_top", children = gList(
+   rectGrob(gp = gpar(col = NA, fill = "white")),
+   textGrob(header_label, gp = gpar(fontsize = 11, col = "black"))))
+
+# Position the grobs in the gtable
+z <- gtable_add_grob(z, stripT, t = min(posT$t), l = min(posT$l), name = "strip-top")
+
+# Add small gaps between strips
+z <- gtable_add_rows(z, unit(1/5, "line"), min(posT$t))
+  
+classificationPlot_decontam <- z
+
+# Repeat (TO DO - make into a function)
+# Need to figure out how to get the titles right, adding trailing spaces works for now.
+header_label = "Filter method                           "
+z <- ggplotGrob(classificationPlot_filter)
+z <- gtable_add_rows(z, height, min(posT$t)-1)
+stripT <- gTree(name = "Strip_top", children = gList(
+   rectGrob(gp = gpar(col = NA, fill = "white")),
+   textGrob(header_label, gp = gpar(fontsize = 11, col = "black"))))
+z <- gtable_add_grob(z, stripT, t = min(posT$t), l = min(posT$l), name = "strip-top")
+z <- gtable_add_rows(z, unit(1/5, "line"), min(posT$t))
+
+classificationPlot_filter <- z
+
+# Repeat (TO DO - make into a function)
+header_label = "SourceTracker                     "
+z <- ggplotGrob(classificationPlot_sourcetracker)
+z <- gtable_add_rows(z, height, min(posT$t)-1)
+stripT <- gTree(name = "Strip_top", children = gList(
+   rectGrob(gp = gpar(col = NA, fill = "white")),
+   textGrob(header_label, gp = gpar(fontsize = 11, col = "black"))))
+z <- gtable_add_grob(z, stripT, t = min(posT$t), l = min(posT$l), name = "strip-top")
+z <- gtable_add_rows(z, unit(1/5, "line"), min(posT$t))
+
+classificationPlot_sourcetracker <- z
+
+  gridExtra::grid.arrange(classificationPlot_filter, classificationPlot_decontam, classificationPlot_sourcetracker)
+  
+  # Save
+  png('classificationPlot.png', , width = 800, height = 800)
+  gridExtra::grid.arrange(classificationPlot_filter, classificationPlot_decontam, classificationPlot_sourcetracker)
+  dev.off()
+  
+```
+
+
+## Composition (Figure 3)
+
+
+```{r fig.width=10, fig.height=8}
+
+customPalette <- c("#1F78B4", "#A6CEE3", "#33A02C", "#B2DF8A", "#E31A1C", "#FB9A99", "#FF7F00", "#FDBF6F", "#6A3D9A", "#d3d3d3")
+
+### Individual plots for publication
+  
+  long_profile <- classification_data %>%
+    filter(method_type %in% c('Uncorrected Results', 'Abundance filter', 'Negative control filter')) %>%
+  select(ASV_1, ASV_2, ASV_3, ASV_4, ASV_5, ASV_6, ASV_7, ASV_8, ASV_10, con_abundance,sample_names, method, method_type) %>%
+    gather(key = 'SequenceClass',value = 'Abundance', -sample_names, -method, - method_type)
+
+  # Figures
+  composition_filter <- ggplot(long_profile, aes(x = sample_names, y = Abundance)) + facet_wrap(~method, ncol = 5) + 
+    geom_col(aes(fill = SequenceClass), width = 0.7, position = position_fill())  +
+    scale_fill_manual(values=customPalette, ) + theme(text = element_text(size=14)) +
+    labs(x = NULL, y = 'Proportion of Reads') +
+       theme(legend.position = "none", 
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12),
+        plot.title = element_text(size = 18))
+ # Decontam methods
+  long_profile <- classification_data %>%
+  filter(method_type %in% c('Decontam frequency')) %>%
+    select(ASV_1, ASV_2, ASV_3, ASV_4, ASV_5, ASV_6, ASV_7, ASV_8, ASV_10, con_abundance,sample_names, method, method_type) %>%
+  gather(key = 'SequenceClass',value = 'Abundance', -sample_names, -method, - method_type)
+
+  # Figures
+  composition_decontam <- ggplot(long_profile, aes(x = sample_names, y = Abundance)) + facet_wrap(~method, ncol = 5) + 
+    geom_col(aes(fill = SequenceClass), width = 0.7, position = position_fill())  +
+    scale_fill_manual(values=customPalette) + theme(text = element_text(size=14)) +
+    labs(x = NULL, y = 'Proportion of Reads') +
+       theme(legend.position = "none",
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12),
+        plot.title = element_text(size = 18))
+  
+  # SourceTracker
+  long_profile <- classification_data %>%
+  filter(method_type %in% c('SourceTracker')) %>%
+    select(ASV_1, ASV_2, ASV_3, ASV_4, ASV_5, ASV_6, ASV_7, ASV_8, ASV_10, con_abundance,sample_names, method, method_type) %>%
+  gather(key = 'SequenceClassification',value = 'Abundance', -sample_names, -method, - method_type)
+
+  # Figures
+  composition_sourcetracker <- ggplot(long_profile, aes(x = sample_names, y = Abundance)) + facet_wrap(~method, ncol = 4) + 
+    geom_col(aes(fill = SequenceClassification), width = 0.7, position = position_fill())  +
+    scale_fill_manual(values=customPalette,  labels = c('Lactobacillus','Staphylococcus','Escherichia/Shigella','Salmonella ASV1','Bacillus','Pseudomonas','Listeria','Enterococcus','Salmonella ASV2','Contaminants')) + theme(text = element_text(size=14)) +
+    labs(x = "Sample", y = 'Proportion of Reads') +
+       theme(legend.position = "right", 
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12),
+        plot.title = element_text(size = 18))
+
+
+# define text for header 
+header_label = "Decontam frequency method"
+
+# Get the ggplot grob
+z <- ggplotGrob(composition_decontam)
+
+# Get the positions of the strips in the gtable: t = top
+posT <- subset(z$layout, grepl("strip-t", name), select = t:r)
+
+# and a new row on top of plot
+height <- z$heights[min(posT$t)]  # height of current top strips
+z <- gtable_add_rows(z, height, min(posT$t)-1)
+
+# Construct the new strip grobs
+stripT <- gTree(name = "Strip_top", children = gList(
+   rectGrob(gp = gpar(col = NA, fill = "white")),
+   textGrob(header_label, gp = gpar(fontsize = 11, col = "black"))))
+
+# Position the grobs in the gtable
+z <- gtable_add_grob(z, stripT, t = min(posT$t), l = min(posT$l), name = "strip-top")
+
+# Add small gaps between strips
+z <- gtable_add_rows(z, unit(1/5, "line"), min(posT$t))
+  
+composition_decontam <- z
+
+# Repeat (TO DO - make into a function)
+# Need to figure out how to get the titles right, adding trailing spaces works for now.
+header_label = "Filter method                           "
+z <- ggplotGrob(composition_filter)
+z <- gtable_add_rows(z, height, min(posT$t)-1)
+stripT <- gTree(name = "Strip_top", children = gList(
+   rectGrob(gp = gpar(col = NA, fill = "white")),
+   textGrob(header_label, gp = gpar(fontsize = 11, col = "black"))))
+z <- gtable_add_grob(z, stripT, t = min(posT$t), l = min(posT$l), name = "strip-top")
+z <- gtable_add_rows(z, unit(1/5, "line"), min(posT$t))
+
+composition_filter <- z
+
+# Repeat (TO DO - make into a function)
+header_label = "SourceTracker                     "
+z <- ggplotGrob(composition_sourcetracker)
+z <- gtable_add_rows(z, height, min(posT$t)-1)
+stripT <- gTree(name = "Strip_top", children = gList(
+   rectGrob(gp = gpar(col = NA, fill = "white")),
+   textGrob(header_label, gp = gpar(fontsize = 11, col = "black"))))
+z <- gtable_add_grob(z, stripT, t = min(posT$t), l = min(posT$l), name = "strip-top")
+z <- gtable_add_rows(z, unit(1/5, "line"), min(posT$t))
+
+composition_sourcetracker <- z
+
+  gridExtra::grid.arrange(composition_filter, composition_decontam, composition_sourcetracker)
+  
+  # Save
+  png('compositionPlot.png', width = 800, height = 800)
+  gridExtra::grid.arrange(composition_filter, composition_decontam, composition_sourcetracker)
+  dev.off()
+  
+```
+
+### ASVs removed
+Information in Supplemental Table 3
+
+```{r}
+results_contamiants_removed <- results_all %>%
+  select(contaminants_removed, method, method_type, sample_names) %>%
+  spread(.,sample_names,contaminants_removed)
+
+results_mock_ASVs_removed <- results_all %>%
+  select( mock_ASVs_removed, method, method_type, sample_names) %>%
+  spread(.,sample_names,mock_ASVs_removed)
+
+
+```

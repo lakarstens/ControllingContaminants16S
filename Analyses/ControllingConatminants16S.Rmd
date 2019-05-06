@@ -2,6 +2,7 @@
 title: "Controlling Contaminants in 16S rRNA Gene Sequencing Experiments"
 author: "Lisa Karstens"
 date: "4/25/2018"
+updated: "4/19/2019"
 output: html_document
 ---
 
@@ -9,29 +10,31 @@ output: html_document
 
 Increasingly there is interest in studying the microbiome from environments that contain few microbes (low microbial biomass). 16S rRNA gene sequencing allows researchers to study microbes from environments in a high throughput culture independent manner, but recent research has highlighted that this technique is prone to contaminants when applied to samples originating from low microbial biomass environments.
 
-We recently performed a study to understand the impact of decreasing microbial biomass on 16S rRNA gene sequencing experiments and evaluate the current computational strategies to control for contaminants (preprint available here). 
+We recently performed a study to understand the impact of decreasing microbial biomass on 16S rRNA gene sequencing experiments and evaluate the current computational strategies to control for contaminants (preprint available [here](https://www.biorxiv.org/content/10.1101/329854v1) ). 
 
-Here, we provide the compiled R Markdown document to reproduce the analysis presented in the manuscript, diveded into 4 primary sections:
+Here, we provide the compiled R Markdown document to reproduce the analysis presented in the manuscript, divided into 6 primary sections:
 
 * Introduction and evaluating contaminants (this document)
-* [Removing contaminant ASVs with decontam](./ControllingConatminants16S_decontam.Rmd)
-* [Removing contaminant ASVs with SourceTracker](./ControllingConatminants16S_SourceTrackerPrep.Rmd)
-* [Evaluating SourceTracker results](./ControllingConatminants16S_SourceTracker.Rmd)
+* [Removing contaminant ASVs with filtering](./ControllingContaminants16S_filtering.Rmd)
+* [Removing contaminant ASVs with decontam](./ControllingContaminants16S_decontam.Rmd)
+* [Removing contaminant ASVs with SourceTracker](./ControllingContaminants16S_SourceTrackerPrep.Rmd)
+* [Evaluating SourceTracker results](./ControllingContaminants16S_SourceTracker.Rmd)
+* [Comparing contaminant removal method](./ControllingContamiantsResults.Rmd)
 
-### Brief overview of the mock microbial dilution series dataset
+### Brief overview of the mock microbial dilution series data set
 
-The dataset generated for this manuscript is a dilution series of a mock microbial community. 
-ZymoBIOMIC mock community standards was used, which consisted of eight bacterial species (*Pseudomonas aeruginosa*, *Escherichia coli*, *Salmonella enterica*, *Lactobacillus fermentum*, *Enterococcus faecalis*, *Staphylococcus aureus*, *Listeria monocytogenes*, *Bacillus subtilis*) and two fungal species (*Saccharomyces cerevisiae* and *Cryptococcus neoformans*). The mock mmicrobial community was diluted with microbial free water (Qiagen) in eight rounds of a serial three-fold dilution prior to DNA extraction. 
+The data set generated for this manuscript is a dilution series of a mock microbial community. 
+ZymoBIOMIC mock community standards was used, which consisted of eight bacterial species (*Pseudomonas aeruginosa*, *Escherichia coli*, *Salmonella enterica*, *Lactobacillus fermentum*, *Enterococcus faecalis*, *Staphylococcus aureus*, *Listeria monocytogenes*, *Bacillus subtilis*) and two fungal species (*Saccharomyces cerevisiae* and *Cryptococcus neoformans*). The mock microbial community was diluted with microbial free water (Qiagen) in eight rounds of a serial three-fold dilution prior to DNA extraction. 
 
-The V4 region of the 16S rRNA gene was amplified and sequenced with Illumina MiSeq. The raw sequencing data is available here. Reads were processed using DADA2 to generate amplicon sequence variants (ASVs), which were used to generate the phyloseq object used in this analysis. 
+The V4 region of the 16S rRNA gene was amplified and sequenced with Illumina MiSeq. The raw sequencing data is available in the Sequence Read Archive (SRA) under accession number [SRP155048](https://www.ncbi.nlm.nih.gov/sra/SRP155048). Reads were processed using DADA2 to generate amplicon sequence variants (ASVs), which were used to generate the phyloseq object used in this analysis. 
 
-## Analysis of the mock microbial dilution series dataset
+## Initial analysis of the mock community dilution series data set
 
 ### Set up the workspace
 
 This analysis uses many open source packages that are available on CRAN and Bioconductor.
 
-To run this analysis yourself, download the supplemental material here along with the R markdown file. Save these files in the same directory on your computer. 
+To run this analysis yourself, download the [supplemental material](add link) along with the RMarkdown file. Save these files in the same directory on your computer. 
 
 ```{r set workspace, message=FALSE}
 # load libraries
@@ -41,6 +44,7 @@ library(tidyverse)
 library(RColorBrewer)
 library(reshape2)
 library(knitr)
+library(dplyr)
 
 # save session info (packages and versions loaded)
 session <- sessionInfo()
@@ -49,9 +53,9 @@ session <- sessionInfo()
 
 ### Create functions to use in this analysis
 
-We created a function called expCompBarPlot to display the expected mock microbial ASVs in color and unexpected contaminants sequences in grayscale. 
+We created a function called expCompBarPlot to display the expected mock community ASVs in color and unexpected contaminants sequences in grayscale. 
 ```{r defineFunctions}
-# Create function to plot bar plots with contaminants in grey scale and expected mock microbial sequences in color
+# Create function to plot bar plots with contaminants in grey scale and expected mock community sequences in color
 
  expCompBarPlot <- function(physeq, exp_taxa, title){
    ## physeq - phyloseq object that will be plotted
@@ -110,35 +114,38 @@ This analysis assumes that you have the RData file and R Markdown file saved in 
 ## Load the dataset
 load("mockDilutions.RData")
 ```
-This dataset includes 3 phyloseq objects:
+This data set includes 3 phyloseq objects:
 
 * ps - phyloseq object with the mock community dilution series and blank control
 * mock_ps - phyloseq object with the mock community dilution series only
 * blank_ps - phyloseq object with the blank control only
 
-mock_ps and blank_ps were created from the ps phyloseq object by subsetting the desired samples to make the summaries of these samples more straight forward.
+and one other object:
+* asv_key - a matrix containing ASV name : ASV sequence pairs 
 
-### Evaluating the undiluted mock microbial community sample
+mock_ps and blank_ps were created from the ps phyloseq object by subsetting the desired samples to make the summaries of these samples more straight forward. The asv_key object was created to make downstream plotting and summarizing easier while being able to retain the full asv sequences for each asv. 
 
-We expect the undiluted mock microbial community sample to mostly contain the expected sequences from the mock microbial community. To evaluate this, we subset out the undiluted mock microbial sample (**D0**) as a new separate phyloseq object and remove the ASVs that are not present in the sample. Since the mock microbial community contains eight bacteria, we expect there to be eight ASVs. 
+### Evaluating the undiluted mock community sample
+
+We expect the undiluted mock community sample to mostly contain the expected sequences from the mock community. To evaluate this, we subset out the undiluted mock community sample (**D0**) as a new separate phyloseq object and remove the ASVs that are not present in the sample. Since the mock community contains eight bacteria, we expect there to be eight ASVs. 
 
 ```{r }
-# Create profile of only expected sequences from the undiluted mock microbial communtiy sample
+# Create profile of only expected sequences from the undiluted mock communtiy sample
 
 # subset the undiluted mock microbial sample (sample name 'D0')
-mock_ps_pure<-subset_samples(mock_ps,sample_names(mock_ps)== 'D0')
+mock_ps_pure <- subset_samples(mock_ps,sample_names(mock_ps)== 'D0')
 
 # remove ASVs that are not present in the undiluted sample
-mock_ps_pure<-prune_taxa(taxa_sums(mock_ps_pure)>0,mock_ps_pure)
+mock_ps_pure <- prune_taxa(taxa_sums(mock_ps_pure)>0,mock_ps_pure)
 
-# change the SampleType and sample_name of the pure mock microbial community sample 
+# change the SampleType and sample_names of the pure mock microbial community sample 
 sample_data(mock_ps_pure)$SampleType <-'MockCommunityProfile'
 sample_names(mock_ps_pure) <-paste('mc',sample_names(mock_ps_pure),sep = '_')
 
 # display a summary of the new phyloseq object
 mock_ps_pure
 ```
-The phyloseq object for the undiluted mock microbial community contains 18 ASVs instead of the expected eight ASVs. Further inspection of these ASVs indicates the eight expected sequences are present and there are 10 unexpected ASVs. One ASV is one nucleotide off from an expected sequence and is present in high abundance. This likely represents an actual mutation that occurred in our mock microbial community. The other nine sequences are present in low abundance  (< 60 reads out of a total of 222,159 reads) and are distinct from the expected sequences. These are low level contaminants which may be due to sample 'cross talk' - errors that occurr from barcode switching during sequencing. We will remove these ASVs from the mock_ps_pure phyloseq object. 
+The phyloseq object for the undiluted mock community contains 18 ASVs instead of the expected eight ASVs. Further inspection of these ASVs indicates the eight expected sequences are present, and that there are 10 additional unexpected ASVs. One ASV is one nucleotide off from an expected sequence and is present in high abundance. This likely represents an actual mutation that occurred in our mock community. The other nine sequences are present in low abundance (< 60 reads out of a total of 222,159 reads) and are distinct from the expected sequences. These are low level contaminants which may be due to sample 'cross talk' - errors that occur from barcode switching during sequencing. We will remove these ASVs from the mock_ps_pure phyloseq object. 
 
 ```{r }
 # Remove the unexpected ASVs from the undiluted mock microbial community dilution series
@@ -148,13 +155,14 @@ mock_taxa = names(sort(taxa_sums(mock_ps_pure), decreasing = TRUE)[1:9])
 
 # subset the taxa in mock_ps_pure so only the expected sequences are present
 mock_ps_pure<-prune_taxa(mock_taxa,mock_ps_pure)
+
 ```
 
 ### Identifying the impact of contaminants with decreasing starting material
-Now that we know what the expected sequences of our mock microbial community are in our dataset, we evaluate the unexpected sequences across the dilution series. 
+Now that we know what the expected sequences of our mock microbial community are in our data set, we evaluate the unexpected sequences across the dilution series. 
 
 ```{r }
-# display a summary of the mock microbial dilution series phyloseq object
+# display a summary of the mock community dilution series phyloseq object
 mock_ps
 ```
 
@@ -162,14 +170,14 @@ A brief overview of the phyloseq object indicates that there are 755 ASVs in the
 
 Now we identify how the decreasing starting material impacts the number of reads per sample and the proportion of reads per sample that are unexpected contaminant sequences.  
 
-```{r fig.width=8,fig.height=4}
+```{r fig.width=5,fig.height=4}
 
 # create a phyloseq object that is normalized to 100 (relative abundance)
-ps_norm<-transform_sample_counts(ps,function(x) 100* x/sum(x))
+ps_norm <- transform_sample_counts(ps,function(x) 100* x/sum(x))
 mock_ps_norm <- transform_sample_counts(mock_ps,function(x) 100* x/sum(x))
 
-# Identify the proportion of each sample that is the expected mock microbial ASVs
-ps_norm_exp<-prune_taxa(mock_taxa,ps_norm)
+# Identify the proportion of each sample that is the expected mock community ASVs
+ps_norm_exp <- prune_taxa(mock_taxa,ps_norm)
 
 # Create a table with the dilution, number of reads per sample, and proportion of contaminants per sample
 dilutionSummary <- data.frame(DilutionSeries = sample_names(ps),NumberOfReads = sample_sums(ps), PercentContaminants = 100-sample_sums(ps_norm_exp))
@@ -179,27 +187,85 @@ dilutions<-c('D0','D1','D2','D3','D4','D5','D6','D7','D8', 'Blank')
 
 # Create plots to summarize these data
 ## Plot Figure 1A - number of reads per sample across dilution series
-ggplot(dilutionSummary, aes(x = DilutionSeries, y = NumberOfReads)) + geom_bar(stat="identity", fill="steelblue") +
-  theme_minimal() + scale_x_discrete(limits = dilutions)
+dilutionSummary %>% subset(DilutionSeries %in% dilutions[1:9] ) %>%
+  ggplot(., aes(x = DilutionSeries, y = NumberOfReads)) + geom_bar(stat="identity", fill="steelblue") +
+  theme_minimal() + scale_x_discrete(limits = dilutions) + 
+  labs(x = "Dilution Series", y = "Number of Reads") +
+  theme(axis.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        plot.title = element_text(size = 16))
+
 
 ## Plot Figure 1B - Percent of contaminants across dilution series
-ggplot(dilutionSummary, aes(x = DilutionSeries, y = PercentContaminants)) + geom_point() + scale_x_discrete(limits = dilutions)
+dilutionSummary %>% subset(DilutionSeries %in% dilutions[1:9] ) %>%
+  ggplot(., aes(x = DilutionSeries, y = PercentContaminants)) + geom_point(size = 3) +
+  scale_x_discrete(limits = dilutions) +   
+  labs(x = "Dilution Series", y = "Number of Reads") +
+  theme(axis.text = element_text(size = 14),
+        axis.title = element_text(size = 16),
+        plot.title = element_text(size = 16))
 
 ## Plot Figure 1C - Stacked bar plot of Mock microbial dilution series
 expCompBarPlot(ps_norm, mock_taxa, 'Initial Mock Microbial Community Dilution')  + scale_x_discrete(limits = dilutions)
+
+## Table 1 
+# Number of sequences per sample
+sample_sums(mock_ps)
+
+# number of ASVs per sample 
+temp <- as.data.frame(ps@otu_table)
+temp[temp >0] <- 1
+rowSums(temp)
+
+# number of known genera per sample 
+temp_genus <- tax_glom(ps, "Genus")
+temp_genus <- as.data.frame(temp_genus@otu_table)
+# change to binary to count unique genera per sample
+temp_genus[temp_genus >0] <- 1
+rowSums(temp_genus)
+
+
 ```
 
-### Evaluating contaminant sequences
+### Evalutate the blank control
+```{r}
+# subset the normalized blank control sample 
+blank_ps_norm <- subset_samples(ps_norm,sample_names(ps_norm) %in% c('Blank'))
+blank_ps_norm <- prune_taxa(taxa_sums(blank_ps_norm) > 0, blank_ps_norm)
+blank_ps_norm
+# 655 unique ASVs
+
+#identify ASVs from mock community present in blank
+table(taxa_names(blank_ps_norm) %in% mock_taxa)
+# Get genera present with >5% abundance
+blank_ps_norm %>% subset_taxa(taxa_names(blank_ps_norm) %in% taxa_names(mock_ps_pure)) %>% psmelt() %>% select(Abundance, Family, Genus)
+
+# Collapse at the genus level, keeping unassigned genera
+blank_ps_norm <- tax_glom(blank_ps_norm, "Genus", NArm = FALSE)
+blank_ps_norm
+
+blank_ps_norm_melt <- psmelt(blank_ps_norm)
+# Get genera present with >5% abundance
+blank_ps_norm_melt %>% filter(Abundance > 5) %>% select(Abundance, Family, Genus)
+
+# Get genera present with abundance between 1 and 5%
+blank_ps_norm_melt %>% filter(Abundance <= 5) %>% filter(Abundance > 1) %>% select(Abundance, Family, Genus)
+
+```
+
+
+### Evaluating contaminant ASVs
 
 To evaluate the contaminant ASVs, we create a phyloseq object only containing the contaminant ASVs. 
 ```{r }
 # create a list of unexpected sequences (contaminants)
+
 # create a list of all ASV taxa names
 contaminant_taxa<-taxa_names(mock_ps)
-# remove the expected mock microbial community ASV taxa names
+# remove the expected mock community ASV taxa names
 contaminant_taxa <- contaminant_taxa[!(contaminant_taxa %in% mock_taxa)]
 
-# create a phyloseq object that only contains the contaminant sequences
+# create a phyloseq object that only contains the contaminant sequences (for use with sourcetracker)
 contaminants_ps<-prune_taxa(contaminant_taxa,mock_ps)
 contaminants_ps<- prune_taxa(taxa_sums(contaminants_ps)>0,contaminants_ps)
 
@@ -207,11 +273,43 @@ contaminants_ps<- prune_taxa(taxa_sums(contaminants_ps)>0,contaminants_ps)
 sample_names(contaminants_ps)<-paste('con',sample_names(contaminants_ps),sep = '_')
 sample_data(contaminants_ps)$SampleType<-'ContaminantProfile'
 
+# create phyloseq object from normalized data to summarize contamiant contribution
+contaminants_ps_norm<-prune_taxa(contaminant_taxa,mock_ps_norm)
+contaminants_ps_norm<- prune_taxa(taxa_sums(contaminants_ps_norm)>0,contaminants_ps_norm)
+
 ```
 Now, we use the contaminants_ps object to evaluate the number contaminant ASVs that are present in the blank control sample. 
+
 ```{r }
-# Number of ASVs in common between contaminants in mock community and the blank control
+# Number of contaminant ASVs across dilution series
 print(paste('Total number of contaminant ASVs', length(taxa_names(contaminants_ps))))
+
+# abundance of contaminant ASVs across samples
+sample_sums(contaminants_ps_norm)
+
+# Abundance of contaminant genera diltuion series
+contaminant_genera <- tax_glom(contaminants_ps_norm, 'Genus', NArm = FALSE) %>% 
+  psmelt() 
+
+# Maximum abundance of contaminant genera per diltuion sample
+contaminant_genera %>%
+  group_by(Sample) %>%
+  filter(Abundance == max(Abundance)) %>% 
+  select(Sample, Abundance)
+
+# Create list of contamiant ASVs with abundance > 1% (Supplemental Table 2)
+contam_table <-contaminants_ps_norm %>% 
+  psmelt() %>%
+  group_by(OTU) %>%
+  mutate(max_abundance = max(Abundance)) %>% 
+  filter(max_abundance > 1) %>%
+  mutate(in_n_samples = sum(Abundance > 0)) %>%
+  mutate(in_blank = OTU %in% taxa_names(blank_ps_norm)) %>%
+  mutate(asv_sequence = asv_key[asv_key$asv_name == OTU,]$asv_sequence) %>%
+  select( Phylum, Class, Order, Family, Genus,max_abundance, in_n_samples, in_blank, asv_sequence) %>% 
+  unique()
+
+# number of ASVs present in blank sample
 print(paste('Number of contaminant ASVs also present in blank', length(intersect(taxa_names(contaminants_ps),taxa_names(blank_ps)))))
 
 # create a list of contaminants taxa that are not present in the blank control
@@ -228,9 +326,9 @@ contaminants_in_blank <- t(contaminants_in_blank)
 
 We found that there are a lot of contaminant ASVs present in the dilution series that aren't in the blank control sample. 
 
-We also determined the *proportion* of contaminant ASVs that are not in found in the blank control to help us identify the actual impact of these. 
+We also determine the *proportion* of contaminant ASVs that are not in found in the blank control to help us identify the actual impact of these. 
 
-```{r fig.width=8,fig.height=4}
+```{r fig.width=5,fig.height=4}
 # Identify the contribution per sample of contaminants that are not present in blanks
 # generate a phyloseq object with contaminants only normalized to 100 
 contaminant_ps_norm <- transform_sample_counts(contaminants_ps,function(x) 100* x/sum(x))
@@ -238,11 +336,14 @@ contaminant_no_blanks<-prune_taxa(contaminant_taxa_no_blank,contaminant_ps_norm)
 
 # Plot the proportion of contaminant ASVs per sample that were not present in the blank control
 plot_bar(contaminant_no_blanks,fill='Genus',, title = ' Proportion of Contaminant ASVs Not in the Blank Control Sample') + theme(legend.position='none') + ylim(c(0,100))
+sample_sums(contaminant_no_blanks)
 
-# sum the amount of contaminant signal not arising from ASVs in blank control
+
+# sum and summarize the amount of contaminant signal arising from ASVs in blank control
 100 - sample_sums(contaminant_no_blanks)
 summary(100 - sample_sums(contaminant_no_blanks))
 ```
+
 From this plot, it is evident that the contaminants not present in the blank control make up a significant proportion of the contaminants. This is a bit surprising, and may be due to the blank control not representing all contaminants. In this experiment all blank controls were pooled into a single sample- it likely would have been better to not pool the blank controls. 
 
 We also evaluated how many times each contaminant ASV is present across the dilution series. 
@@ -253,21 +354,17 @@ contaminant_bin[contaminant_bin>0]<-1
 contaminant_bin = t(contaminant_bin)
 contaminant_nsamples <- rowSums(contaminant_bin)
 table(contaminant_nsamples)
+
+# summarize information about contaminant ASVs only in one sample
+contaminant_one_sample <- rownames(contaminant_bin[rowSums(contaminant_bin)==1,])
+temp <- contaminants_ps %>% prune_taxa(contaminant_one_sample,.) %>% taxa_sums(.)
+min(temp)
+max(temp)
+mean(temp)
 ```
-We also identify the maximum abundnce of each individual contaminant ASV across the dilution series, and summarize all of this information in a table (Supplemental Table 2)
 
-```{r }
-# identify the maximum proportion of reads for each contaminant ASV
-contaminant_max <- apply(as.data.frame(mock_ps_norm@otu_table), 2, max)
-contaminant_max <- subset(contaminant_max, names(contaminant_max) %in% contaminant_taxa)
+### Impact of contaminants on alpha diversity
 
-# identify the minimum proportion of reads for each contaminant ASV
-contaminant_min <- apply(as.data.frame(mock_ps_norm@otu_table), 2, min)
-contaminant_min <- subset(contaminant_min, names(contaminant_min) %in% contaminant_taxa)
-
-# summarize in table (Supplemental Table 2)
-contaminantSummary <- cbind( ASV = names(contaminant_max),as.data.frame(contaminants_ps@tax_table), Maximum = contaminant_max, Minimum = contaminant_min, NumberOfSamples = contaminant_nsamples, InBlank =  contaminants_in_blank)
-```
 Next, we evaluate the impact that the contaminant ASVs have on commonly used alpha diversity metrics. 
 
 ```{r warning=FALSE}
@@ -285,11 +382,11 @@ Finally, we save the workspace image so that we can revisit the analysis if need
 # Save workspace
 save.image("mockDilutionsPrep.RData")
 ```
-This work outlines each step required for evaluating the impact of contaminants on 16S rRNA gene experiments with samples that have varying starting material. The conclusions from this analysis is that contamiant ASVs increase with decreasing starting material and lead to distorted microbial community profiles and overestimated alpha diversity measurements. 
+This work outlines each step required for evaluating the impact of contaminants on 16S rRNA gene experiments with samples that have varying starting material. The conclusions from this analysis is that contaminant ASVs increase with decreasing starting material and lead to distorted microbial community profiles and overestimated alpha diversity measurements. 
 
-While contaminants are prevelant in low microbial biomass samples, and potentially unavoidable, all hope is not lost. There are a few computational approaches to identify and remove contaminant sequences from 16S rRNA gene sequencing data. To see how we evauated these different methods for identifying and removing contaminants from this dataset, see: 
-* [Removing contaminant ASVs with decontam](./ControllingConatminants16S_decontam.Rmd)
-* [Removing contaminant ASVs with SourceTracker](./ControllingConatminants16S_SourceTrackerPrep.Rmd)
-* [Evaluating SourceTracker results](./ControllingConatminants16S_SourceTracker.Rmd)
+While contaminants are prevalent in low microbial biomass samples, and potentially unavoidable, all hope is not lost. There are a few computational approaches to identify and remove contaminant sequences from 16S rRNA gene sequencing data. To see how we evaluated these different methods for identifying and removing contaminants from this data set, see: 
+* [Removing contaminant ASVs with decontam](./ControllingContaminants16S_decontam.Rmd)
+* [Removing contaminant ASVs with SourceTracker](./ControllingContaminants16S_SourceTrackerPrep.Rmd)
+* [Evaluating SourceTracker results](./ControllingContaminants16S_SourceTracker.Rmd)
 
 

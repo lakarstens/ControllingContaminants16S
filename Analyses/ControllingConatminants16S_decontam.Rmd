@@ -38,6 +38,9 @@ library(RColorBrewer)
 library(reshape2)
 library(phyloseq)
 library(decontam); packageVersion("decontam")
+library(knitr)
+library(kableExtra)
+library(gridExtra)
 
 # save session info (packages versions loaded)
 session <- sessionInfo()
@@ -133,33 +136,130 @@ intersect(taxa_names(contam.freq), taxa_names(mock_ps))
 We repeat this on various levels of the threshold parameter to identify the ideal one to use on our dataset. To do this, we create a function called **testIsContam** 
 ```{r}
 # Create a function to evaluate the performance of decontam at different thresholds
-testIsContam <-  function(physeq, thr){
-  # apply decontam
+testIsContam <-  function(physeq, thr, mock_taxa){
+  # create normalized phyloseq object
+    physeq_norm <- transform_sample_counts(physeq,function(x) 100* x/sum(x))
+  # extract out original normalized otu table
+    original_otus <- as.matrix(as.data.frame(physeq@otu_table))
+  # identify the orginal proportion of contaminants
+    contaminants_original <- rowSums(original_otus[,!colnames(original_otus) %in% mock_taxa])
+  # identify the orginal proportion of mock community ASVs
+    mock_original <- rowSums(original_otus[,colnames(original_otus) %in% mock_taxa])
+          
+  # apply decontam to the orginal phyloseq object
   contam.freq <- isContaminant(physeq, method="frequency", threshold=thr, conc="DNA_conc")
-
-  # identify the percent of contaminants removed by decontam
-  ps_removed_prop <- prune_taxa(contam.freq$contaminant, mock_ps_norm)
-  print(paste("Percent of contaminants removed from each sample, threshold = ", thr))
-  print(sample_sums(ps_removed_prop)/(100-sample_sums(ps_norm_exp)) * 100)
-
-  # identify if any expected mock microbial community ASVs were removed
-  print('Mock mocrobial community ASVs identified as contaminants:')
-  print(intersect(taxa_names(contam.freq), taxa_names(mock_ps)))
-
-  # Identify the percentage of contaminant still remaining in the dataset
+  # create physloseq object without contaminants
+  physeq.noncontam.freq <- prune_taxa(!contam.freq$contaminant, physeq)
   # normalize the post-decontam phyloseq object to 100
-  ps.noncontam.freq.norm <- transform_sample_counts(ps.noncontam.freq,function(x) 100* x/sum(x))
-  # remove expected ASVs
-  ps_rem_contam <- prune_taxa(mock_taxa,ps.noncontam.freq.norm)
-  # print the percent of contaminants remaining after decontam 
-  sample_sums(ps_rem_contam)
+  physeq.noncontam.freq.norm <- transform_sample_counts(physeq.noncontam.freq,function(x) 100* x/sum(x))
+
+  # subset out the otu table of recovered otus (otus that are kept)
+  recovered_otus <- as.matrix(as.data.frame(physeq.noncontam.freq@otu_table))
+  
+  # create a subset of removed otus for evaluation
+  removed_otus <- as.matrix(as.data.frame(physeq@otu_table))
+  removed_otus <- removed_otus[,!colnames(removed_otus) %in% colnames(recovered_otus)]
+ 
+   # Summarize results  
+    ## proportion of contaminants removed (of all total contaminant ASVs)
+    contaminants_removed = (rowSums(removed_otus[,!colnames(removed_otus) %in% mock_taxa])/ contaminants_original) * 100
+    ## proportion of mock removed (of all total mock ASVs)
+    mock_ASVs_removed = (rowSums(removed_otus[,colnames(removed_otus) %in% mock_taxa])/ mock_original) * 100
+  ## total amount of contaminants remaining in ne
+  contaminants_remaining =  rowSums(recovered_otus[,!colnames(recovered_otus) %in% mock_taxa])
+  # calculate alpha diverity (on non-normalized decontam data) and summary of relative abundances (on normalized decontam data)
+  diversity <- estimate_richness(physeq.noncontam.freq, measures = c('Observed','Shannon','InvSimpson'))
+  rel_abundance <- as.data.frame(physeq.noncontam.freq.norm@otu_table)
+  mock_abundance <- rel_abundance[, colnames(rel_abundance) %in% mock_taxa]
+  total_mock_abundance <- rowSums(mock_abundance)
+  con_abundance <- rowSums(rel_abundance[,!colnames(rel_abundance) %in% mock_taxa])
+
+  # plot results
+  compositionPlot <- expCompBarPlot(physeq.noncontam.freq, mock_taxa,  paste0('Decontam frequency, thr =', thr))
+  
+  # Calculate classifications
+
+  #  % of mock community ASVs correctly classified as mock community ASVs 
+  true_neg <- rowSums(recovered_otus[,colnames(recovered_otus) %in% mock_taxa])
+  # % of mock community incorrectly classified as mock community ASVs
+  false_neg <- rowSums(recovered_otus[,!colnames(recovered_otus) %in% mock_taxa])
+  #  identify non-mock community ASVs correctly classified as not belonging to mock   community
+  true_pos <- rowSums(removed_otus[,!colnames(removed_otus) %in% mock_taxa])
+  #  identify mock community ASVs incorrectly classified as not belonging to mock   community
+  false_pos <- rowSums(removed_otus[,colnames(removed_otus) %in% mock_taxa])
+  
+  sensitivity <- true_pos/(true_pos + false_neg)
+  specificty <- true_neg/(true_neg + false_pos)
+  accuracy <- (true_pos + true_neg) / (false_pos + true_pos + false_neg + true_neg)
+  prevalence <- (true_pos + false_neg) / (false_pos + true_pos + false_neg + true_neg)
+  
+# Plot classifications per sample (Figure 5A)
+asv_profile <- rbind(false_neg,false_pos,true_neg,true_pos)
+colnames(asv_profile) <- c('D0', 'D1','D2','D3', 'D4', 'D5', 'D6', 'D7', 'D8')
+
+long_asv_profile <- melt(data = asv_profile, 
+                 id.vars = rownames(), 
+                 variable.name = colnames(), 
+                 value.name = "Abundance"
+                )
+
+# Create color palette
+customPalette <- c('#969696','#bdbdbd','#1B9E77', '#D95F02')
+
+  classificationPlot <- ggplot(long_asv_profile, aes(x = Var2, y = Abundance)) + 
+    geom_col(aes(fill = Var1), width = 0.7, position = position_fill())  +
+    scale_fill_manual(values=customPalette) + theme(text = element_text(size=12)) +
+    labs(x = "Sample", y = 'Proportion of Reads') +
+      ggtitle(paste0('Sequence classification for \n  Decontam frequency, thr = ', thr)) + 
+      theme(legend.position = "right", legend.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 16),
+        plot.title = element_text(size = 16))
+  # plot figures
+  grid.arrange(compositionPlot, classificationPlot, ncol = 2)
+  # return results
+  
+  results <- cbind(contaminants_removed, mock_ASVs_removed,con_abundance, total_mock_abundance, diversity, mock_abundance,sensitivity , specificty, accuracy, prevalence, true_pos, true_neg, false_pos, false_neg)
+  results <- results %>%
+    mutate(method = paste0('Decontam frequency, thr =', thr)) %>%
+    mutate(sample_names = rownames(results))  
+  # return results
+  return(results)
 
 }
 
-testIsContam(mock_ps,0.2)
-testIsContam(mock_ps,0.3)
-testIsContam(mock_ps,0.4)
-testIsContam(mock_ps,0.5)
+summary_table <- function(results, thr){
+    caption_text = paste0('Decontam frequency method, threshold = ', thr, ' summary')
+    drop_col <- c('true_neg','true_pos','false_neg','false_pos','method')
+    results <- results %>% select(-one_of(drop_col))
+  kable(t(results), digits = 2, caption = caption_text) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = F) %>%
+    group_rows("Proportion Removed", 1,2) %>%
+    group_rows("Percent Remaining after Contaminant Removal", 3,4) %>%
+    group_rows("Diversity Estimates after Contaminant Removal", 5,7) %>% 
+  group_rows("Mock Abundances after Contaminant Removal", 8,16) %>% 
+  group_rows("Classification Performance", 17,20)
+  
+}
+```
+# Print Figures
+```{r fig.width=8,fig.height=4}
+results_decontam_0_1 <- testIsContam(mock_ps,0.1, mock_taxa)
+results_decontam_0_2 <- testIsContam(mock_ps,0.2, mock_taxa)
+results_decontam_0_3 <- testIsContam(mock_ps,0.3, mock_taxa)
+results_decontam_0_4 <- testIsContam(mock_ps,0.4, mock_taxa)
+results_decontam_0_5 <- testIsContam(mock_ps,0.5, mock_taxa)
+
+```
+# Display tables
+```{r, fig.width=10, fig.height=4}
+
+summary_table(results_decontam_0_1, 0.1)
+summary_table(results_decontam_0_2, 0.2)
+summary_table(results_decontam_0_3,0.3)
+summary_table(results_decontam_0_4, 0.4)
+summary_table(results_decontam_0_5,0.5)
+
 ```
 Using a threshold of 0.5 is reasonable since it removed many of the contaminant ASVs but did not remove any of the expected ASVs. 
 ```{r}
@@ -176,10 +276,10 @@ expCompBarPlot(ps.noncontam.freq, mock_taxa, 'Contaminant removed, Decontam (fre
 We can also evaluate the success of decontam by identifying how well it classified the ASVs.
 We will use a similar scheme that was used for evaluating SourceTracker in our manuscript:
 
-* mock_c - ASVs correctly identified as mock community ASVs
-* mock_i - ASVs incorrectly identified as mock community ASVs (unremoved contaminants)
-* cp_c - ASVs correctly identified as contaminant ASVs
-* cp_i - ASVs incorrectly identified as contamiant ASVs
+* true_neg - ASVs correctly identified as mock community ASVs
+* false_neg - ASVs incorrectly identified as mock community ASVs (unremoved contaminants)
+* true_pos - ASVs correctly identified as contaminant ASVs
+* false_pos - ASVs incorrectly identified as contamiant ASVs
 ```{r }
 # Summarize ASV classification similar to the approach taken with SourceTracker
 # Create zero filled OTU table
@@ -196,28 +296,28 @@ nc_otus <- otu_temp
 nc_otus[,colnames(otu_mock_nc)] <- otu_mock_nc
 
 # Create contaminant otu table
-mock_con <- prune_taxa(contam.freq$contaminant, mock_ps)
-mock_con <- prune_samples(sample_names(mock_ps), mock_con)
-otu_mock_con <-as.data.frame(mock_con@otu_table)
+cp_c <- prune_taxa(contam.freq$contaminant, mock_ps)
+cp_c <- prune_samples(sample_names(mock_ps), cp_c)
+otu_cp_c <-as.data.frame(cp_c@otu_table)
 # normalize to relative abundance of initial data
-otu_mock_con <- otu_mock_con/sample_sums(mock_ps)
+otu_cp_c <- otu_cp_c/sample_sums(mock_ps)
 
 # Fill in the zero filled OTU table with the decontam identified contaminants
 con_otus <- otu_temp
-con_otus[,colnames(otu_mock_con)] <- otu_mock_con
+con_otus[,colnames(otu_cp_c)] <- otu_cp_c
 
 # identify ASVs correctly identified as mock
-mock_c <- rowSums(nc_otus[,colnames(nc_otus) %in% mock_taxa])
+true_neg <- rowSums(nc_otus[,colnames(nc_otus) %in% mock_taxa])
 # identify ASVs incorrectly identified as mock
-mock_i <- rowSums(nc_otus[,!colnames(nc_otus) %in% mock_taxa])
+false_neg <- rowSums(nc_otus[,!colnames(nc_otus) %in% mock_taxa])
 
 ### identify sequences correctly identified as contaminants
-cp_c <- rowSums(con_otus[,!colnames(con_otus) %in% mock_taxa])
+true_pos <- rowSums(con_otus[,!colnames(con_otus) %in% mock_taxa])
 ### identify sequences incorrectly identified as contaminants
-cp_i <- rowSums(con_otus[,colnames(con_otus) %in% mock_taxa])
+false_pos <- rowSums(con_otus[,colnames(con_otus) %in% mock_taxa])
 
 # Plot classifications per sample (Figure 5A)
-asv_profile <- rbind(mock_i,cp_i,mock_c,cp_c)
+asv_profile <- rbind(false_neg,false_pos,true_neg,true_pos)
 colnames(asv_profile) <- c('D0', 'D1','D2','D3', 'D4', 'D5', 'D6', 'D7', 'D8')
 
 long_asv_profile <- melt(data = asv_profile, 
@@ -227,19 +327,28 @@ long_asv_profile <- melt(data = asv_profile,
                 )
 
 # Create color palette
-customPalette <- c('#969696','#d9d9d9','#1B9E77', '#E7298A')
+customPalette <- c('#969696','#bdbdbd','#1B9E77', '#E7298A')
 
 # plot
-ggplot(long_asv_profile, aes(x = Var2, y = Abundance)) + geom_col(aes(fill = Var1), width = 0.7, position = position_fill())  + scale_fill_manual(values=customPalette) + theme(text = element_text(size=26)) + labs(x = "Dilution Series", y = 'Proportion of Reads')
+ggplot(long_asv_profile, aes(x = Var2, y = Abundance)) + geom_col(aes(fill = Var1), width = 0.7, position = position_fill())  + scale_fill_manual(values=customPalette) + theme(text = element_text(size=12)) + labs(x = "Dilution Series", y = 'Proportion of Reads')
 
 print('Proportion of contaminants remaining after decontam:')
-print(format(round(mock_i*100, 2), nsmall = 2))
+print(format(round(false_neg*100, 2), nsmall = 2))
 
 print('Proportion of contaminants identified by decontam:')
-print(format(round(cp_c/(cp_c+mock_i)*100, 2), nsmall = 2))
+print(format(round(true_pos/(true_pos+false_neg)*100, 2), nsmall = 2))
 
 ```
 
 This work demonstrates using the frequency method implemented in decontam for identifying and removing contaminants from a 16S rRNA gene sequencing experiment. We were able to evaluate the perfomance of this method since we used a dilution series of a mock microbial community, where the expected composition of the samples are known. Decontam is one analytical method for identifying and removing contaminants from 16S rRNA gene sequencing data. We also evaluated using SourceTracker, which is documented [here](.ControllingConatminants16S_SourceTrackerPrep.Rmd). 
 
+```{r}
+vars_to_keep <- ls(pattern = 'results')
+vars_to_rm <- ls()
+vars_to_rm <-vars_to_rm[!vars_to_rm %in% vars_to_keep]
+rm(list = vars_to_rm)
+rm(vars_to_rm, vars_to_keep)
 
+save.image('results_decontam.RData')
+
+```

@@ -21,17 +21,17 @@ For more information about the experimental design and preprocessing of the data
 
 ### Using SourceTracker for contaminant identification and removal
 
-SourceTracker was used to identify contamiants in a 16S rRNA sequencing experiment. More information about SourceTracker can be found on the SourceTracker [website](https://github.com/biota/sourcetracker2). SourceTracker is a bit resource intensive and can take a while to run, so the code used to run SourceTracker for this analysis is avaiable in a separate Markdown document [here](.Analysis/ControllingConatminants16S_SourceTrackerPrep.Rmd). 
+SourceTracker was used to identify contaminants in a 16S rRNA sequencing experiment. More information about SourceTracker can be found on the SourceTracker [website](https://github.com/biota/sourcetracker2). SourceTracker is a bit resource intensive and can take a while to run, so the code used to run SourceTracker for this analysis is avaiable in a separate Markdown document [here](.Analysis/ControllingConatminants16S_SourceTrackerPrep.Rmd). 
 
 ### Theory behind SourceTracker and its application for contaminant removal
 
 SourceTracker uses a Bayesian approach to predict the proportion of unknown samples ('sink' samples) arising from defined microbial sources ('source' samples). In theory, SourceTracker can be used to identify the proportion of experimental samples that arise from contaminants. 
 
-We tested two scenarios for recovering the mock microbial community profiles from the mock microbial dilution series. In the first scenario, the expected mock community profile served as a source environment, mimicking the scenario when the experimental source is well defined. In the second scenario, the expected mock microbial community is unknown, and the proportion of sequences not predicted to be from the blank control or contaminant profile is the contamination-corrected profile. The second scenario is the more commonly encountered scenario, where the low microbial biomass environment that is being studied is poorly defined. For each scenario, we evaluated the use of the blank control and a combination of blank control and contaminant profiles as the source environments.
+We tested two scenarios for recovering the mock microbial community profiles from the mock microbial Samples. In the first scenario, the expected mock community profile served as a source environment, mimicking the scenario when the experimental source is well defined. In the second scenario, the expected mock microbial community is unknown, and the proportion of sequences not predicted to be from the blank control or contaminant profile is the contamination-corrected profile. The second scenario is the more commonly encountered scenario, where the low microbial biomass environment that is being studied is poorly defined. For each scenario, we evaluated the use of the blank control and a combination of blank control and contaminant profiles as the source environments.
 
 This R Markdown file loads in the result files from running SourceTracker and summarizes how well SourceTracker performed by:
 
-* Identifyig how much of the conataminants were removed with SourceTracker
+* Identifyig how much of the contaminants were removed with SourceTracker
 * Idenifying how much of the sample is cantaminants after applying SourceTracker
 * Identifying if any expected sequences were removed
 
@@ -45,6 +45,9 @@ To run this analysis yourself, download the data along with the R markdown file 
 library(tidyverse)
 library(RColorBrewer)
 library(reshape2)
+library(phyloseq)
+library(kableExtra)
+library(gridExtra)
 
 # save session info (packages versions loaded)
 session <- sessionInfo()
@@ -100,9 +103,9 @@ compBarPlot <- function(otus, plotTitle){
     scale_x_discrete(labels = dilution_labels) +
     labs(title = plotTitle, x = "sample", y = "Relative Abundance") +
     theme(legend.position = "right", legend.title = element_text(size = 12),
-        axis.text = element_text(size = 20),
-        axis.title = element_text(size = 20),
-        plot.title = element_text(size = 20))
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        plot.title = element_text(size = 12))
   comp_bar
 }
 
@@ -122,6 +125,122 @@ mockCom <- function(otus){
   print((rowSums(data_table)) * 100)
 }
 
+
+summary_table <- function(results, scenario){
+    # add scenario to results table
+
+  caption_text = paste0('SourceTracker ', scenario, ' summary')
+  drop_col <- c('true_neg','true_pos','false_neg','false_pos','method')
+  results <- results %>% select(-one_of(drop_col))
+  kable(t(results), digits = 2, caption = caption_text) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = F) %>%
+    group_rows("Proportion Removed", 1,2) %>%
+    group_rows("Percent Remaining after Contaminant Removal", 3,4) %>%
+    group_rows("Diversity Estimates after Contaminant Removal", 5,7) %>% 
+  group_rows("Mock Abundances after Contaminant Removal", 8,16) %>% 
+  group_rows("Classification Performance", 17,20)
+
+}
+
+# Function to load sourcetracker results
+load_sourcetracker <- function(file, otu_key) {
+  otus <- read.delim(file, row.names = 1)
+    # subset only the Dilution data
+  dilutions <- c('D0', 'D1','D2','D3', 'D4', 'D5', 'D6', 'D7', 'D8')
+  otus<-otus[rownames(otus) %in% dilutions,]
+  return(otus)
+}
+
+summarize_st <- function (recovered_otus,all_otus,mock_taxa, scenario){
+  # for simplicity, all other classifications are 'contaminants'
+ removed_otus <- all_otus - recovered_otus
+ con_orig <- rowSums(all_otus[,!colnames(all_otus) %in% mock_taxa])
+ mock_orig <- rowSums(all_otus[,colnames(all_otus) %in% mock_taxa])
+
+#  % of mock community ASVs correctly classified as mock community ASVs 
+true_neg <- rowSums(recovered_otus[,colnames(recovered_otus) %in% mock_taxa])
+# % of mock community incorrectly classified as non-mock community ASVs
+false_neg <- rowSums(recovered_otus[,!colnames(recovered_otus) %in% mock_taxa])
+#  identify non-mock community ASVs correctly classified as not belonging to mock   community
+true_pos <- rowSums(removed_otus[,!colnames(removed_otus) %in% mock_taxa])
+#  identify mock community ASVs incorrectly classified as not belonging to mock   community
+false_pos <- rowSums(removed_otus[,colnames(removed_otus) %in% mock_taxa])
+
+sensitivity <- true_pos/(true_pos + false_neg)
+specificty <- true_neg/(true_neg + false_pos)
+accuracy <- (true_pos + true_neg) / (false_pos + true_pos + false_neg + true_neg)
+prevalence <- (true_pos + false_neg) / (false_pos + true_pos + false_neg + true_neg)
+ 
+   # Summarize results  
+    ## proportion of contaminants removed (of all total contaminant ASVs)
+    contaminants_removed = (rowSums(removed_otus[,!colnames(removed_otus) %in% mock_taxa])/ con_orig) * 100
+    ## proportion of mock removed (of all total mock ASVs)
+    mock_ASVs_removed = (rowSums(removed_otus[,colnames(removed_otus) %in% mock_taxa])/ mock_orig) * 100
+  ## total amount of conatmiants remaining
+  contaminants_remaining =  rowSums(recovered_otus[,!colnames(recovered_otus) %in% mock_taxa]) *100
+  # calculate alpha diverity  and summary of relative abundances (on re-normalized recovered data)
+  # create phyloseq object on the recovered otus
+  ps_st <- mock_ps
+  ps_st@otu_table <- otu_table(recovered_otus, taxa_are_rows = FALSE)
+  # Renormalize and transform into count matrix - not ideal, but necessary to compare to other data (to calculate diversity estimates)
+  ps_st <- transform_sample_counts(ps_st,function(x) 100000* x/sum(x))
+  otu_table(ps_st) <- otu_table(round(as.matrix((otu_table(ps_st)))), taxa_are_rows= FALSE)
+  diversity <- estimate_richness(ps_st, measures = c('Observed','Shannon','InvSimpson'))
+  # Calculate relative abundance on recovered otus
+  rel_abundance <- (rec_otus/rowSums(rec_otus))*100
+  mock_abundance <- rel_abundance[, colnames(rel_abundance) %in% mock_taxa]
+  total_mock_abundance <- rowSums(mock_abundance)
+  con_abundance <- rowSums(rel_abundance[,!colnames(rel_abundance) %in% mock_taxa])
+  # return results
+  results <- cbind(contaminants_removed, mock_ASVs_removed,con_abundance, total_mock_abundance, diversity, mock_abundance,sensitivity , specificty, accuracy, prevalence, true_pos, true_neg, false_pos, false_neg)
+    results <- results %>%
+    mutate(method = paste0('SourceTracker, ', scenario)) %>%
+    mutate(sample_names = rownames(results))
+return(results)
+}
+
+plot_st_classes <- function(mock_taxa, recovered_otus, all_otus, st_method){
+    # for simplicity, all other classifications are 'contaminants'
+  removed_otus <- all_otus - recovered_otus
+  con_orig <- rowSums(all_otus[,!colnames(all_otus) %in% mock_taxa])
+  mock_orig <- rowSums(all_otus[,colnames(all_otus) %in% mock_taxa])
+
+#  % of mock community ASVs correctly classified as mock community ASVs 
+  true_neg <- rowSums(recovered_otus[,colnames(recovered_otus) %in% mock_taxa])
+# % of mock community incorrectly classified as non-mock community ASVs
+  false_neg <- rowSums(recovered_otus[,!colnames(recovered_otus) %in% mock_taxa])
+  #  identify non-mock community ASVs correctly classified as not belonging to mock   community
+  true_pos <- rowSums(removed_otus[,!colnames(removed_otus) %in% mock_taxa])
+  #  identify mock community ASVs incorrectly classified as not belonging to mock   community
+  false_pos <- rowSums(removed_otus[,colnames(removed_otus) %in% mock_taxa])
+
+  profile <- rbind(false_neg, false_pos,true_neg,true_pos)
+
+  long_profile <- melt(data = profile, 
+                 id.vars = rownames(), 
+                 variable.name = colnames(), 
+                 value.name = "Abundance"
+                )
+  names(long_profile)[names(long_profile)=="Var1"] <- "SequenceClass"
+  customPalette <- c('#969696','#bdbdbd', '#1B9E77', '#D95F02')
+
+  # Figures
+  classificationPlot <- ggplot(long_profile, aes(x = Var2, y = Abundance)) + 
+    geom_col(aes(fill = SequenceClass), width = 0.7, position = position_fill())  +
+    scale_fill_manual(values=customPalette) + theme(text = element_text(size=12)) +
+    labs(x = "Sample", y = 'Proportion of Reads') +
+      ggtitle(paste0('Sequence classification for \n  ', st_method)) + 
+      theme(legend.position = "right", legend.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 12),
+        plot.title = element_text(size = 12))
+
+  compositionPlot <- compBarPlot(recovered_otus, paste0('SourceTracker ', st_method))
+
+  # plot figures
+  grid.arrange(compositionPlot, classificationPlot, ncol = 2)
+}
+
 ```
 ### Loading the mock microbial community information
 We created an R workspace that just contains the ASV sequences of the expected mock microbial communtiy. This will help us identify the ASVs that were correctly and incorrectly assigned to the mock microbial community. 
@@ -129,14 +248,14 @@ We created an R workspace that just contains the ASV sequences of the expected m
 ## 
 # Load workspace with Mock microbial community taxa ASV identifiers
 load("mock_taxa.RData")
+# load initial phyloseq object
+load("mockDilutions.RData")
+
 ```
 This dataset includes 1 object:
 mock_taxa - A list of the expected mock microbial community ASV sequences
 
-```{r}
-# create a variable containing the dilution series sample names
-dilutions <- c('D0', 'D1','D2','D3', 'D4', 'D5', 'D6', 'D7', 'D8')
-```
+
 ## Results for Case 1 - well defined experimental and contaminant environments
 In this case, the defined sources were:  
 
@@ -154,86 +273,61 @@ The results are defined by:
 ```{r }
 
 # load results from running SourceTracker with contaminant profiles and black controls 
-rec_otus <- read.delim("./Sourcetracker_mock_cp_b_30000/full_results/mock_cp_b_MockCommunityProfile_contributions.txt", row.names = 1)
-rec_otus<-rec_otus[rownames(rec_otus) %in% dilutions,]
+rec_otus <- load_sourcetracker("./Sourcetracker_mock_cp_b_30000/full_results/mock_cp_b_MockCommunityProfile_contributions.txt", asv_key)
 
-blank_otus <- read.delim("./Sourcetracker_mock_cp_b_30000/full_results/mock_cp_b_Blank_contributions.txt", row.names = 1)
-blank_otus<-blank_otus[rownames(blank_otus) %in% dilutions,]
+blank_otus <- load_sourcetracker("./Sourcetracker_mock_cp_b_30000/full_results/mock_cp_b_Blank_contributions.txt", asv_key)
 
-cp_otus <- read.delim("./Sourcetracker_mock_cp_b_30000/full_results/mock_cp_b_ContaminantProfile_contributions.txt", row.names = 1)
-cp_otus<-cp_otus[rownames(cp_otus) %in% dilutions,]
+cp_otus <- load_sourcetracker("./Sourcetracker_mock_cp_b_30000/full_results/mock_cp_b_ContaminantProfile_contributions.txt", asv_key)
 
-unk_otus <- read.delim("./Sourcetracker_mock_cp_b_30000/full_results/mock_cp_b_Unknown_contributions.txt", row.names = 1)
-unk_otus<-unk_otus[rownames(unk_otus) %in% dilutions,]
+unk_otus <- load_sourcetracker("./Sourcetracker_mock_cp_b_30000/full_results/mock_cp_b_Unknown_contributions.txt", asv_key)
+
 ```
 
-We will also create a new variable, **con_orig** that stores the proportion of each sample arising from contamiants. Since the data was subsampled prior to running SourceTracker, the proportion of contaminant ASVs will vary. To identify the proportion of the original sample that arose from contaminants, we sum the proportion of non-mock community ASVs from each of the SourceTracker result files. We then sum the total amount of contaminant ASVs for each sample.  
+We will also create a new variables, **mock_orig** and **con_orig** that stores the proportion of each sample arising from the mock community and contaminants, respectively. Since the data was subsampled prior to running SourceTracker, the proportion of contaminant ASVs will vary. To identify the proportion of the original sample that arose from contaminants, we sum the proportion of non-mock community ASVs from each of the SourceTracker result files. We then sum the total amount of contaminant ASVs for each sample.  
 
 ```{r}
 # determine total amounts of conatmiants across the dataset
+rec_mock <- rec_otus[,colnames(rec_otus) %in% mock_taxa] 
+blank_mock<- blank_otus[,colnames(blank_otus) %in% mock_taxa] 
+cp_mock <- cp_otus[,colnames(cp_otus) %in% mock_taxa] 
+unk_mock <- unk_otus[,colnames(unk_otus) %in% mock_taxa] 
+# Sum the total amounts of contaminants across contaminant ASVs
+mock_otus <- rec_mock +  blank_mock + cp_mock + unk_mock
+# Sum the total amount of contaminants per Samples sample
+mock_orig <- rowSums(mock_otus)
+
+
+# determine total amounts of contaminants across the dataset
 rec_con <- rec_otus[,!colnames(rec_otus) %in% mock_taxa] 
 blank_con<- blank_otus[,!colnames(blank_otus) %in% mock_taxa] 
 cp_con <- cp_otus[,!colnames(cp_otus) %in% mock_taxa] 
 unk_con <- unk_otus[,!colnames(unk_otus) %in% mock_taxa] 
-# Sum the total amounts of conataminants across contaminant ASVs
+# Sum the total amounts of contaminants across contaminant ASVs
 con_otus <- rec_con +  blank_con + cp_con + unk_con
-# Sum the total amount of contamiants per dilution series sample
+# Sum the total amount of contaminants per Samples sample
 con_orig <- rowSums(con_otus)
+
+# 
+all_otus <- rec_otus + blank_otus + cp_otus + unk_otus
 ```
 ### Evaluation of Scenario 1, Case 1 - well defined experimental and contaminant communites
 
 To evaluate SourceTracker, we will generate a stacked bar plot of the SourceTracker predicted mock microbial communtiy profile as well as evaluate the percentage of the samples that were correctly (indicated by the community abbreviation followed by _c) and incorrectly classified (indicated by the community abbreviation followed by _i).
-```{r }
-# Create stacted bar plots of the corrected mock microbial community profile
-compBarPlot(rec_otus, 'Cleaned Mock Microbial Community Dilution Series')
 
-# Identify the percent of contamiants remaining in the corrected mock microbial community profile
-print ("% of contaminants remaining")
-remainCont(rec_otus)
-
-#  % of mock community ASVs correctly classified as mock community ASVs
-mock_c <- rowSums(rec_otus[,colnames(rec_otus) %in% mock_taxa])
-# % of mock community incorrectly classified as mock community ASVs
-mock_i <- rowSums(rec_otus[,!colnames(rec_otus) %in% mock_taxa])
-
-#  identify non-mock community ASVs correctly classified as not belonging to mock community
-blank_c <- rowSums(blank_otus[,!colnames(blank_otus) %in% mock_taxa])
-cp_c <- rowSums(cp_otus[,!colnames(cp_otus) %in% mock_taxa])
-unk_c <- rowSums(unk_otus[,!colnames(unk_otus) %in% mock_taxa])
-
-#  identify mock community ASVs incorrectly classified as not belonging to mock community
-blank_i <- rowSums(blank_otus[,colnames(blank_otus) %in% mock_taxa])
-unk_i <- rowSums(unk_otus[,colnames(unk_otus) %in% mock_taxa])
-cp_i <- rowSums(cp_otus[,colnames(cp_otus) %in% mock_taxa])
-
-```
 ### Plot classifications per sample
 
 To summarize the SourceTracker classifications, we will create stacked barplots that summarize the proportion of reads correctly and incorrectly classified as arising from the mock microbial community (mock_c for correct, mock_i for incorrect), the contaminant profile (cp_c, cp_i), the blank (blank_c, blank_i), unknown (unk_c, unk_i).   
-```{r }
-st_profile <- rbind(mock_i,blank_i,unk_i, cp_i,mock_c, blank_c, unk_c, cp_c)
 
-long_st_profile <- melt(data = st_profile, 
-                 id.vars = rownames(), 
-                 variable.name = colnames(), 
-                 value.name = "Abundance"
-                )
-customPalette <- c('#969696','#f0f0f0','#bdbdbd','#d9d9d9', '#1B9E77', '#D95F02', '#7570B3', '#E7298A')
 
-# Figure 5B
-ggplot(long_st_profile, aes(x = Var2, y = Abundance)) + geom_col(aes(fill = Var1), width = 0.7, position = position_fill())  + scale_fill_manual(values=customPalette) + theme(text = element_text(size=26)) + labs(x = "Dilution Series", y = 'Proportion of Reads')
+# Summarize Results as done for other methods
+```{r fig.width=10,fig.height=4}
 
+all_otus <- rec_otus + blank_otus + cp_otus + unk_otus
+results_st_sc1_case1 <- summarize_st(rec_otus,all_otus,mock_taxa, 'scenario 1 case 1')
+summary_table(results_st_sc1_case1, 'scenario 1 case 1')
+plot_st_classes(mock_taxa,rec_otus,all_otus,'Scenario 1, Case 1' )
+  
 ```
-### Reporting the percent of of contaminants successfully removed
-One useful measure for comparing results of methods for contamiant removal is the percent of the contaminants that were actually removed from the data. To calculate this, we sum the proportions of reads that were classified as arising from contaminant sources (including the unknown source) that were not expected mock microbial community ASVs. We divide this value by the **con_orig** variable which contains the total amount of contaminant ASVs for each sample.
-
-```{r}
-# percent of contaminants successfully removed
-con_cor <- unk_c + cp_c + blank_c
-print('Percent of contamiants successfully removed')
-print(con_cor / con_orig) * 100
-```
-
 # Scenario 1, Case 2 - Well defined experimental environment, blank control as contaminant environments
 
 In this case, the defined sources were:  
@@ -250,17 +344,14 @@ The results are defined by:
 
 We repeat the analysis that was performed for Scenario 1, Case 1. 
 
-```{r Case2, fig.width=8,fig.height=4}
+```{r Case2}
 
 # load results from running SourceTracker with contaminant profiles and black controls (Case 2 well-defined experimental community, blank only as contaminant profile)
-rec_otus <- read.delim("./Sourcetracker_mock_b_30000/full_results/mock_b_MockCommunityProfile_contributions.txt", row.names = 1)
-rec_otus<-rec_otus[rownames(rec_otus) %in% dilutions,]
+rec_otus <- load_sourcetracker("./Sourcetracker_mock_b_30000/full_results/mock_b_MockCommunityProfile_contributions.txt", asv_key)
 
-blank_otus <- read.delim("./Sourcetracker_mock_b_30000/full_results/mock_b_Blank_contributions.txt", row.names = 1)
-blank_otus<-blank_otus[rownames(blank_otus) %in% dilutions,]
+blank_otus <- load_sourcetracker("./Sourcetracker_mock_b_30000/full_results/mock_b_Blank_contributions.txt", asv_key)
 
-unk_otus <- read.delim("./Sourcetracker_mock_b_30000/full_results/mock_b_Unknown_contributions.txt", row.names = 1)
-unk_otus<-unk_otus[rownames(unk_otus) %in% dilutions,]
+unk_otus <- load_sourcetracker("./Sourcetracker_mock_b_30000/full_results/mock_b_Unknown_contributions.txt", asv_key)
 
 # determine total amounts of conatmiants across the dataset
 rec_con <- rec_otus[,!colnames(rec_otus) %in% mock_taxa] 
@@ -268,11 +359,6 @@ blank_con<- blank_otus[,!colnames(blank_otus) %in% mock_taxa]
 unk_con <- unk_otus[,!colnames(unk_otus) %in% mock_taxa] 
 con_otus <- rec_con +  blank_con + unk_con
 con_orig <- rowSums(con_otus)
-
-print("Evaluation of Case 2 - well defined experimental community")
-compBarPlot(rec_otus, 'Cleaned Mock Microbial Community Dilution Series')
-print ("% of contaminants remaining")
-remainCont(rec_otus)
 
 # identify mock community ASVs correctly and incorrectly classified
 mock_c <- rowSums(rec_otus[,colnames(rec_otus) %in% mock_taxa])
@@ -286,11 +372,6 @@ unk_c <- rowSums(unk_otus[,!colnames(unk_otus) %in% mock_taxa])
 blank_i <- rowSums(blank_otus[,colnames(blank_otus) %in% mock_taxa])
 unk_i <- rowSums(unk_otus[,colnames(unk_otus) %in% mock_taxa])
 
-# percent of contaminants successfully removed
-con_cor <- unk_c + blank_c
-print('Percent of contamiants successfully removed')
-print(con_cor / con_orig) * 100
-
 # Plot classifications per sample
 
 st_profile <- rbind(mock_i,blank_i,unk_i,mock_c, blank_c, unk_c)
@@ -301,14 +382,21 @@ long_st_profile <- melt(data = st_profile,
                  value.name = "Abundance"
                 )
 
-customPalette <- c('#969696','#f0f0f0','#bdbdbd', '#1B9E77', '#D95F02', '#7570B3')
+customPalette <- c('#969696','#bdbdbd','#f0f0f0', '#1B9E77', '#E7298A', '#7570B3')
 
 # Figure 5C
-ggplot(long_st_profile, aes(x = Var2, y = Abundance)) + geom_col(aes(fill = Var1), width = 0.7, position = position_fill())  + scale_fill_manual(values=customPalette) + theme(text = element_text(size=26)) + labs(x = "Dilution Series", y = 'Proportion of Reads')
-
+ggplot(long_st_profile, aes(x = Var2, y = Abundance)) + geom_col(aes(fill = Var1), width = 0.7, position = position_fill())  + scale_fill_manual(values=customPalette) + theme(text = element_text(size=12)) + labs(x = "Samples", y = 'Proportion of Reads')
 
 ```
 
+```{r fig.width=10,fig.height=4} 
+
+all_otus <- rec_otus + blank_otus + unk_otus
+results_st_sc1_case2 <- summarize_st(rec_otus,all_otus,mock_taxa,'scenario 1 case 2')
+summary_table(results_st_sc1_case2, 'scenario 1 case 2')
+plot_st_classes(mock_taxa,rec_otus,all_otus,'Scenario 1, Case 2' )
+
+```
 ## Scenario 2, Case 3 - undefined experimental environment, well defined contaminant environments
 In this case, the defined sources were:  
 
@@ -321,31 +409,20 @@ The results are defined by:
 * blank_otus - ASVs identified as arising from the blank source (contaminants)
 * cp_otus - ASVs identified as arising from the contaminant source (contaminants)
 
-```{r Case3, fig.width=8,fig.height=4}
+```{r Case3, fig.width=5,fig.height=4}
 # load results from running SourceTracker with only contaminant profiles and black controls defined (Case 3)
-rec_otus <- read.delim("./Sourcetracker_cp_b_30000/full_results/cp_b_Unknown_contributions.txt", row.names = 1)
-rec_otus<-rec_otus[rownames(rec_otus) %in% dilutions,]
+rec_otus <- load_sourcetracker("./Sourcetracker_cp_b_30000/full_results/cp_b_Unknown_contributions.txt", asv_key)
 
-cp_otus <- read.delim("./Sourcetracker_cp_b_30000/full_results/cp_b_ContaminantProfile_contributions.txt", row.names = 1)
-cp_otus<-cp_otus[rownames(cp_otus) %in% dilutions,]
+cp_otus <- load_sourcetracker("./Sourcetracker_cp_b_30000/full_results/cp_b_ContaminantProfile_contributions.txt",  asv_key)
 
-blank_otus <- read.delim("./Sourcetracker_cp_b_30000/full_results/cp_b_Blank_contributions.txt", row.names = 1)
-blank_otus<-blank_otus[rownames(blank_otus) %in% dilutions,]
+blank_otus <- load_sourcetracker("./Sourcetracker_cp_b_30000/full_results/cp_b_Blank_contributions.txt", asv_key)
 
-# determine total amounts of conatmiants across the dataset
+# determine total amounts of contaminants across the dataset
 rec_con <- rec_otus[,!colnames(rec_otus) %in% mock_taxa] 
 blank_con<- blank_otus[,!colnames(blank_otus) %in% mock_taxa] 
 cp_con <- cp_otus[,!colnames(cp_otus) %in% mock_taxa] 
 con_otus <- rec_con +  blank_con + cp_con 
 con_orig <- rowSums(con_otus)
-
-print("Evaluation of Case 3 - poorly defined experimental community, well defined contaminant community")
-compBarPlot(rec_otus, 'Cleaned Mock Microbial Community Dilution Series')
-print ("% of contaminants remaining")
-remainCont(rec_otus)
-
-print ("% of expected mock community ASVs classified as contaminants")
-mockCom(blank_otus)
 
 # Identify mock community correctly and incorrectly classified
 mock_c <- rowSums(rec_otus[,colnames(rec_otus) %in% mock_taxa])
@@ -358,11 +435,6 @@ blank_c <- rowSums(blank_otus[,!colnames(blank_otus) %in% mock_taxa])
 cp_i <- rowSums(cp_otus[,colnames(cp_otus) %in% mock_taxa])
 blank_i <- rowSums(blank_otus[,colnames(blank_otus) %in% mock_taxa])
 
-# percent of contaminants successfully removed
-con_cor <- cp_c + blank_c
-print('Percent of contamiants successfully removed')
-print(con_cor / con_orig) * 100
-
 st_profile <- rbind(mock_i ,blank_i,cp_i,mock_c, blank_c, cp_c)
 
 long_st_profile <- melt(data = st_profile, 
@@ -371,13 +443,21 @@ long_st_profile <- melt(data = st_profile,
                  value.name = "Abundance"
                 )
 
-customPalette <- c('#969696','#f0f0f0','#d9d9d9', '#1B9E77', '#D95F02', '#E7298A')
+customPalette <- c('#969696','#bdbdbd','#d9d9d9', '#1B9E77', '#E7298A', '#D95F02')
 
 # Figure 5D
-ggplot(long_st_profile, aes(x = Var2, y = Abundance)) + geom_col(aes(fill = Var1), width = 0.7, position = position_fill())  + scale_fill_manual(values=customPalette) + theme(text = element_text(size=26)) + labs(x = "Dilution Series", y = 'Proportion of Reads')
+ggplot(long_st_profile, aes(x = Var2, y = Abundance)) + geom_col(aes(fill = Var1), width = 0.7, position = position_fill())  + scale_fill_manual(values=customPalette) + theme(text = element_text(size=12)) + labs(x = "Samples", y = 'Proportion of Reads')
 
 ```
 
+```{r fig.width=10,fig.height=4}
+
+all_otus <- rec_otus + blank_otus + cp_otus
+results_st_sc2_case1 <- summarize_st(rec_otus,all_otus,mock_taxa,'scenario 2 case 1')
+summary_table(results_st_sc2_case1, 'scenario 2 case 1')
+plot_st_classes(mock_taxa,rec_otus,all_otus,'Scenario 2, Case 1' )
+  
+```
 # Scenario 2,  Case 4 - undefined experimental environment, blank control as contaminant environment
 In this case, the defined sources were:  
 
@@ -389,27 +469,17 @@ The results are defined by:
 * rec_otus - ASVs not classified as arising from any defined source (recovered mock microbial community) 
 * blank_otus - ASVs identified as arising from the blank source (contaminants)
 
-```{r Case4, fig.width=8,fig.height=4}
+```{r Case4, fig.width=5,fig.height=4}
 # load results from running SourceTracker with only a black control defined (Case 4)
-rec_otus <- read.delim("./Sourcetracker_b_30000/full_results/b_Unknown_contributions.txt", row.names = 1)
-rec_otus<-rec_otus[rownames(rec_otus) %in% dilutions,]
+rec_otus <- load_sourcetracker("./Sourcetracker_b_30000/full_results/b_Unknown_contributions.txt", asv_key)
 
-blank_otus <- read.delim("./Sourcetracker_b_30000/full_results/b_Blank_contributions.txt", row.names = 1)
-blank_otus<-blank_otus[rownames(blank_otus) %in% dilutions,]
+blank_otus <- load_sourcetracker("./Sourcetracker_b_30000/full_results/b_Blank_contributions.txt", asv_key)
 
 # determine total amounts of conatmiants across the dataset
 rec_con <- rec_otus[,!colnames(rec_otus) %in% mock_taxa] 
 blank_con<- blank_otus[,!colnames(blank_otus) %in% mock_taxa] 
 con_otus <- rec_con +  blank_con 
 con_orig <- rowSums(con_otus)
-
-print("Evaluation of Case 4 - poorly defined experimental community, blank only as contaminant community")
-compBarPlot(rec_otus, 'Cleaned Mock Microbial Community Dilution Series')
-print ("% of contaminants remaining")
-remainCont(rec_otus)
-
-print ("% of expected mock community ASVs classified as blank")
-mockCom(blank_otus)
 
 # Identify mock community correctly and incorrectly classified
 mock_c <- rowSums(rec_otus[,colnames(rec_otus) %in% mock_taxa])
@@ -419,12 +489,6 @@ mock_i <- rowSums(rec_otus[,!colnames(rec_otus) %in% mock_taxa])
 blank_c <- rowSums(blank_otus[,!colnames(blank_otus) %in% mock_taxa])
 blank_i <- rowSums(blank_otus[,colnames(blank_otus) %in% mock_taxa])
 
-
-# percent of contaminants successfully removed
-con_cor <- blank_c
-print('Percent of contamiants successfully removed')
-print(con_cor / con_orig) * 100
-
 st_profile <- rbind(mock_i ,blank_i,mock_c, blank_c)
 
 long_st_profile <- melt(data = st_profile, 
@@ -433,8 +497,30 @@ long_st_profile <- melt(data = st_profile,
                  value.name = "Abundance"
                 )
 
-customPalette <- c('#969696','#f0f0f0', '#1B9E77', '#D95F02')
+customPalette <- c('#969696','#bdbdbd', '#1B9E77', '#D95F02')
 # Figure 5E
-ggplot(long_st_profile, aes(x = Var2, y = Abundance)) + geom_col(aes(fill = Var1), width = 0.7, position = position_fill())  + scale_fill_manual(values=customPalette) + theme(text = element_text(size=26)) + labs(x = "Dilution Series", y = 'Proportion of Reads')
+ggplot(long_st_profile, aes(x = Var2, y = Abundance)) + geom_col(aes(fill = Var1), width = 0.7, position = position_fill())  + scale_fill_manual(values=customPalette) + theme(text = element_text(size=12)) + labs(x = "Samples", y = 'Proportion of Reads')
+
+```
+
+```{r fig.width=10,fig.height=4}
+
+all_otus <- rec_otus + blank_otus 
+results_st_sc2_case2 <- summarize_st(rec_otus,all_otus,mock_taxa, 'scenario 2 case 2')
+summary_table(results_st_sc2_case2, 'scenario 2 case 2')
+plot_st_classes(mock_taxa,rec_otus,all_otus,'Scenario 2, Case 2' )
+
+```
+
+
+# Save results 
+```{r}
+vars_to_keep <- ls(pattern = 'results')
+vars_to_rm <- ls()
+vars_to_rm <-vars_to_rm[!vars_to_rm %in% vars_to_keep]
+rm(list = vars_to_rm)
+rm(vars_to_rm, vars_to_keep)
+
+save.image('results_sourcetracker.RData')
 
 ```

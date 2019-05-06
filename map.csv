@@ -1,0 +1,11 @@
+,X.SampleID,SampleDescription,DNA_conc,SampleType,Description,is.neg
+s160,D0,MC_Neat,138.8,MockCommunity,Mock,FALSE
+s161,D1,MC_1:3,109.2,MockCommunity,Mock,FALSE
+s162,D2,MC_1:9,105.8,MockCommunity,Mock,FALSE
+s163,D3,MC_1:27,60.6,MockCommunity,Mock,FALSE
+s164,D4,MC_1:81,34.9,MockCommunity,Mock,FALSE
+s165,D5,MC_1:243,22.6,MockCommunity,Mock,FALSE
+s166,D6,MC_1:729,20,MockCommunity,Mock,FALSE
+s167,D7,MC_1:2187,11.4,MockCommunity,Mock,FALSE
+s168,D8,MC_1:6561,13.8,MockCommunity,Mock,FALSE
+s159,Blank,Urine Extraction Blank,10.5,Blank,Blank,TRUE

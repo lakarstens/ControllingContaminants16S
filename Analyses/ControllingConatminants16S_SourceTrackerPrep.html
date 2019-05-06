@@ -91,8 +91,14 @@ img {
 .tabbed-pane {
   padding-top: 12px;
 }
+.html-widget {
+  margin-bottom: 20px;
+}
 button.code-folding-btn:focus {
   outline: none;
+}
+summary {
+  display: list-item;
 }
 </style>
 
@@ -101,14 +107,74 @@ button.code-folding-btn:focus {
 <div class="container-fluid main-container">
 
 <!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
 <script>
 $(document).ready(function () {
   window.buildTabsets("TOC");
 });
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
 </script>
 
 <!-- code folding -->
-
 
 
 
@@ -130,69 +196,66 @@ $(document).ready(function () {
 <p>We recently performed a study to understand the impact of decreasing microbial biomass on 16S rRNA gene sequencing experiments and evaluate the current computational strategies to control for contaminants (preprint available here).</p>
 <p>We provide the compiled R Markdown documents to reproduce the analysis presented in the manuscript, divided into 4 primary sections:</p>
 <ul>
-<li><a href="./ControllingConatminants16S.html">Introduction and evaluating contaminants</a></li>
-<li><a href="./ControllingConatminants16S_decontam.html">Removing contaminant ASVs with decontam</a></li>
+<li><a href="./ControllingConatminants16S.Rmd">Introduction and evaluating contaminants</a></li>
+<li><a href="./ControllingConatminants16S_decontam.Rmd">Removing contaminant ASVs with decontam</a></li>
 <li>Removing contaminant ASVs with SourceTracker (this document)</li>
-<li><a href="https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingConatminants16S_SourceTracker.html">Evaluating SourceTracker results</a></li>
+<li><a href="./ControllingConatminants16S_SourceTracker.Rmd">Evaluating SourceTracker results</a></li>
 </ul>
 <p>Here, we provide the compiled R Markdown document to reproduce running SourceTracker for identifying and removing contaminants as presented in the manuscript.</p>
 <p>For more information about the experimental design and preprocessing of the data, see the <strong>Introduction and evaluating contaminants</strong>.</p>
 </div>
 <div id="using-sourcetracker-for-contaminant-identification-and-removal" class="section level3">
 <h3>Using SourceTracker for contaminant identification and removal</h3>
-<p>SourceTracker was used to identify contamiants in a 16S rRNA sequencing experiment consiting of a dilution series of a mock microbial community. More information about SourceTracker can be found on the SourceTracker website (<a href="https://github.com/danknights/sourcetracker">original SourceTracker</a>, <a href="https://github.com/biota/sourcetracker2"> SourceTracker2</a> ). SourceTracker is a bit resource intensive and can take a while to run, so the code used to run SourceTracker is presented here, but the results from running SourceTracker are available <here> for anyone not wishing to run this analysis. The analysis of the SourceTracker results are available in a separate Markdown document <a href="https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingConatminants16S_SourceTracker.html">here</a>.</p>
+<p>SourceTracker is a tool that uses a Bayesian approach to predict the proportion of an unknown experimental sample arising from known source environments. More information about SourceTracker can be found in the <a href="https://www.nature.com/articles/nmeth.1650">manuscript</a>. SourceTracker was initially implemented in R, which is the version used here. The sourcecode for running SourceTracker in R is available <a href="https://github.com/danknights/sourcetracker">here</a>. Recently, SourceTracker has be implemented and is currently being further developed in Python, which is available <a href="https://github.com/biota/sourcetracker2">here</a>.</p>
+<p>We evaluated SourceTracker to identify contamiants in a 16S rRNA sequencing experiment consiting of a dilution series of a mock microbial community. SourceTracker is a bit resource intensive and can take a while to run, so the code used to run SourceTracker is presented here, but the results from running SourceTracker are available <here> for anyone not wishing to run this analysis. The analysis of the SourceTracker results are available in a separate Markdown document <strong>Evaluating SourceTracker results</strong>.</p>
 </div>
 <div id="theory-behind-sourcetracker-and-its-application-for-contaminant-removal" class="section level3">
 <h3>Theory behind SourceTracker and its application for contaminant removal</h3>
 <p>SourceTracker uses a Bayesian approach to predict the proportion of unknown samples (‘sink’ samples) arising from defined microbial sources (‘source’ samples). In theory, SourceTracker can be used to identify the proportion of experimental samples that arise from contaminants.</p>
-<p>In order to use SourceTracker, we needed to define our source environments. They are defined as:</p>
+<p>In order to use SourceTracker, we needed to define our source environments. For our experiment, the source environments are defined as:</p>
 <ul>
 <li>Mock Community source - The undiluted mock microbial community sample served as the mock community source environemt</li>
-<li>Contaminant source - Contamiant profiles were created by removing the mock microbial ASVs from the mock microbial diution series (D - D )</li>
+<li>Contaminant source - Contamiant profiles were created by removing the mock microbial ASVs from the mock microbial diution series.</li>
 <li>Blank countrol source - The extraction blank served as the blank control source environment</li>
 </ul>
-<p>The ‘sink’ samples were the original mock microbial community dilution series (D1 - D8).</p>
+<p>The ‘sink’ samples that we are trying to predict the sources of are the original mock microbial community dilution series (D1 - D8).</p>
 <p>We tested two scenarios for recovering the mock microbial community profiles from the mock microbial dilution series. For each scenario, we evaluated the use of the blank control and a combination of blank control and contaminant profiles as the source environments.</p>
 <p><strong>Scenario 1: a well-defined experimental environment</strong> In the first scenario, the expected mock community profile served as a source environment, mimicking the scenario when the experimental source is well defined. <em>Case 1</em> - The source environments were: Mock community source, contamiant source, blank control source <em>Case 2</em> - Tested if the blank control source environment was enough to classify contaminant ASVs. The source environments were: Mock community source, blank control source</p>
 <p><strong>Scenario 2: a poorly defined experimental environment</strong> In the second scenario, the expected mock microbial community is unknown, and the proportion of sequences not predicted to be from the blank control or contaminant profile is the contamination-corrected profile. The second scenario is the more commonly encountered scenario, where the low microbial biomass environment that is being studied is poorly defined.</p>
-<p><em>Case 1</em> - The source environments were: contamiant source and blank control source <em>Case 2</em> - Tested if the blank control source environment was enough to classify contaminant ASVs. The source environments was the blank control source</p>
+<p><em>Case 3</em> - The source environments were: contamiant source and blank control source <em>Case 4</em> - Tested if the blank control source environment was enough to classify contaminant ASVs. The source environments was the blank control source</p>
 <p>This R Markdown file loads in the result files from running <strong>Introduction and evaluating contaminants</strong>, preps the data for SourceTracker, and runs SourceTracker v1.01 (the R implementation, available here). You can skip this, download the resulting SourceTracker files here and skip ahead to the <strong>Evaluation of SourceTracker results</strong>.</p>
 </div>
 <div id="set-up-the-workspace" class="section level3">
 <h3>Set up the workspace</h3>
-<p>This analysis uses freely available open source packages that are avaiable on CRAN and Bioconductor.</p>
 <p>To run this analysis yourself, download the supplemental material here along with the R markdown file.</p>
 <pre class="r"><code># load libraries
 library(tidyverse)</code></pre>
-<pre><code>## ── Attaching packages ──────────────────────────────────────────────────────────────── tidyverse 1.2.1 ──</code></pre>
-<pre><code>## ✔ ggplot2 2.2.1     ✔ purrr   0.2.4
-## ✔ tibble  1.4.2     ✔ dplyr   0.7.4
-## ✔ tidyr   0.8.0     ✔ stringr 1.3.0
-## ✔ readr   1.1.1     ✔ forcats 0.3.0</code></pre>
-<pre><code>## ── Conflicts ─────────────────────────────────────────────────────────────────── tidyverse_conflicts() ──
+<pre><code>## ── Attaching packages ────── tidyverse 1.2.1 ──</code></pre>
+<pre><code>## ✔ ggplot2 3.1.0       ✔ purrr   0.3.1  
+## ✔ tibble  2.0.1       ✔ dplyr   0.8.0.1
+## ✔ tidyr   0.8.3       ✔ stringr 1.4.0  
+## ✔ readr   1.3.1       ✔ forcats 0.4.0</code></pre>
+<pre><code>## ── Conflicts ───────── tidyverse_conflicts() ──
 ## ✖ dplyr::filter() masks stats::filter()
 ## ✖ dplyr::lag()    masks stats::lag()</code></pre>
 <pre class="r"><code>library(phyloseq)
-
 
 # save session info (packages versions loaded)
 session &lt;- sessionInfo()
 
 # Load data
-load('mockDilutions_prep.RData')</code></pre>
-<p>This dataset includes 3 objects:</p>
-<pre class="r"><code># create SourceSink Variable for sourcetracker
+load('mockDilutionsPrep.RData')</code></pre>
+<p>This dataset includes many objects, 4 that are important for this analysis: * mock_ps - a phyloseq object containing all of the mock microbial dilution series * mock_ps_pure - a phyloseq object containing only the expected sequences from the undiluted mock microbial sample (D0) * contaminants_ps - a phyloseq object containing only the unexpected sequences from the mock microbial dilution series * blank_ps - a phyloseq object containing only the blank extraction control sample</p>
+<p>To prepare these samples for SourceTracker, we need to create a variable called SourceSink that defines if the sample should be considered a source environment or a sink environment. We do this by adding a column to each of the phyloseq object’s sample_data and assigning it to source or sink. We then merge all of the phyloseq objects to create a new phyloseq object called st_ps.</p>
+<pre class="r"><code># create SourceSink variable for sourcetracker
 sample_data(mock_ps)$SourceSink &lt;-'sink'
-
 sample_data(contaminants_ps)$SourceSink &lt;-'source'
 sample_data(blank_ps)$SourceSink &lt;-'source'
 sample_data(mock_ps_pure)$SourceSink &lt;-'source'
-# change the SampleType and sample_name of the pure mock microbial community sample
-sample_data(mock_ps_pure)$SampleType &lt;-'MockCommunityProfile'
-sample_names(mock_ps_pure) &lt;-paste('mc',sample_names(mock_ps_pure),sep = '_')
 
 # create a phyloseq object with samples for sourcetracker
 st_ps &lt;- merge_phyloseq(blank_ps,mock_ps,contaminants_ps,mock_ps_pure)</code></pre>
+<p>To use SourceTracker, we need to extract information from the st_ps phyloseq object. We are also going to clean up the workspace so that only the variables we need for sourcetracker are kept.</p>
 <pre class="r"><code># extract information in a sourcetracker friendly format
 st_otus&lt;-as.data.frame(st_ps@otu_table)
 taxa&lt;-as.data.frame(st_ps@tax_table)
@@ -201,38 +264,39 @@ metadata$Env&lt;-metadata$SampleType
 
 # clean up the workspace
 
-# remove all variables except st_otus,  metadata, taxa
-varsToKeep &lt;- c('st_otus','metadata','taxa')
+# remove all variables except st_otus,  metadata, taxa, mock_taxa
+varsToKeep &lt;- c('st_otus','metadata','taxa','mock_taxa')
 rm(list=ls()[! ls() %in% varsToKeep])</code></pre>
+<p>Next, create a function to run SourceTracker. This was modified from the example available <a href="https://github.com/danknights/sourcetracker/blob/master/example.r">here</a></p>
 <pre class="r"><code># create the runSourceTracker function\
-# modified from https://github.com/danknights/sourcetracker/blob/master/example.r
+# modified from https://github.com/danknights/sourcetracker/blob/master/example.r 
 runSourceTracker = function(st_otus,metadat,outdir,filebase,rarefaction){
   # extract the source environments and source/sink indices
   train.ix &lt;- which(metadata$SourceSink=='source')
   test.ix &lt;- which(metadata$SourceSink=='sink')
   envs &lt;- metadata$Env
   if(is.element('Description',colnames(metadata))) desc &lt;- metadata$Description
-
+  
   #skip tuning (takes a long time), can determine if it is worth it later
   alpha1 &lt;- alpha2 &lt;- 0.001
-
-  ## Run SourceTracker
+  
+  ## Run SourceTracker 
   # train SourceTracker on training data ('source' samples)
   st &lt;- sourcetracker(st_otus[train.ix,], envs[train.ix],rarefaction_depth = rarefaction)
-  # predict / estimate source proportions on the test data ('sink' samples)
+  # predict / estimate source proportions on the test data ('sink' samples) 
   results &lt;- predict(st,st_otus[test.ix,], alpha1=alpha1, alpha2=alpha2,full.results = TRUE, rarefaction_depth =rarefaction)
-
+  
   ## Export results
   # get average of full results across all runs of sourcetracker
   res.mean &lt;- apply(results$full.results,c(2,3,4),mean)
-
+  
   # Get depth of each sample for relative abundance calculation
   sample.depths &lt;- apply(results$full.results[1,,,,drop=F],4,sum)
-
+  
   # create directory to store the results
   subdir &lt;- paste(outdir,'full_results',sep='/')
   dir.create(subdir,showWarnings=FALSE, recursive=TRUE)
-
+  
   # write each environment as a separate file
   for(i in 1:length(results$train.envs)){
     env.name &lt;- results$train.envs[i]
@@ -240,14 +304,14 @@ runSourceTracker = function(st_otus,metadat,outdir,filebase,rarefaction){
     res.mean.i &lt;- res.mean[i,,]
     # handle the case where there is only one sink sample
     if(is.null(dim(res.mean.i))) res.mean.i &lt;- matrix(res.mean.i,ncol=1)
-
+    
     # make rows be samples, columns be features
     res.mean.i &lt;- t(res.mean.i)
-
+    
     # ensure proper names are retained
     colnames(res.mean.i) &lt;- colnames(st_otus)
     rownames(res.mean.i) &lt;- results$samplenames
-
+    
     # calculate and save relative abundance
     res.mean.i.ra &lt;- sweep(res.mean.i,1,sample.depths,'/')
     sink(filename.fractions)
@@ -255,7 +319,7 @@ runSourceTracker = function(st_otus,metadat,outdir,filebase,rarefaction){
     write.table(res.mean.i.ra,quote=F,sep='\t')
     sink(NULL)
   }
-
+  
   #generate summary plots
   if(dim(results$draws)[2] &gt; 1) {
     plot.types &lt;- c('pie')
@@ -271,12 +335,14 @@ runSourceTracker = function(st_otus,metadat,outdir,filebase,rarefaction){
       plotixs &lt;- which(envs == env)
       pdf(sprintf('%s/%s_%s_%s.pdf',outdir,filebase,plot.type,env),width=5,height=5)
       plot(results, type=plot.type, labels=labels, include.legend=TRUE, indices=plotixs)
-      dev.off()
+      dev.off()    
     }
   }
   return(results)
 }</code></pre>
-<pre class="r"><code>source('sourcetracker-1.0.1/src/SourceTracker.R')
+<p>Now we are ready to run SourceTracker. Be warned - this is a reseource intensive program. This next code chunk took 3 hours to run on my Mac laptop.</p>
+<pre class="r"><code># Load the SourceTracker scripts
+source('sourcetracker-1.0.1/src/SourceTracker.R')
 
 # Scenario 1, Case 1 - well defined source environments
 # Run at ASV Level, rarefaction set to 30,000 reads
@@ -289,12 +355,12 @@ mcpb_30000_results&lt;-runSourceTracker(st_otus,metadata,outdir,filebase,rarefac
 ## ..........   1 of    9, depth=30000:  0.00 (0.00)    0.00 (0.00) 1.00 (0.00) 0.00 (0.00)
 ## ..........   2 of    9, depth=30000:  0.00 (0.00)    0.00 (0.00) 1.00 (0.00) 0.00 (0.00)
 ## ..........   3 of    9, depth=30000:  0.00 (0.00)    0.02 (0.00) 0.98 (0.00) 0.00 (0.00)
-## ..........   4 of    9, depth=30000:  0.00 (0.00)    0.05 (0.00) 0.95 (0.00) 0.00 (0.00)
-## ..........   5 of    9, depth=30000:  0.00 (0.00)    0.13 (0.00) 0.87 (0.00) 0.00 (0.00)
-## ..........   6 of    9, depth=30000:  0.00 (0.00)    0.28 (0.00) 0.71 (0.00) 0.00 (0.00)
-## ..........   7 of    9, depth=30000:  0.00 (0.00)    0.64 (0.00) 0.34 (0.00) 0.01 (0.00)
-## ..........   8 of    9, depth=30000:  0.00 (0.00)    0.54 (0.00) 0.46 (0.00) 0.00 (0.00)
-## ..........   9 of    9, depth=30000:  0.00 (0.00)    0.79 (0.00) 0.21 (0.00) 0.00 (0.00)</code></pre>
+## ..........   4 of    9, depth=30000:  0.00 (0.00)    0.04 (0.00) 0.96 (0.00) 0.00 (0.00)
+## ..........   5 of    9, depth=30000:  0.00 (0.00)    0.12 (0.00) 0.88 (0.00) 0.00 (0.00)
+## ..........   6 of    9, depth=30000:  0.00 (0.00)    0.27 (0.00) 0.72 (0.00) 0.00 (0.00)
+## ..........   7 of    9, depth=30000:  0.00 (0.00)    0.64 (0.00) 0.35 (0.00) 0.00 (0.00)
+## ..........   8 of    9, depth=30000:  0.00 (0.00)    0.56 (0.00) 0.44 (0.00) 0.00 (0.00)
+## ..........   9 of    9, depth=30000:  0.00 (0.00)    0.80 (0.00) 0.20 (0.00) 0.00 (0.00)</code></pre>
 <pre class="r"><code># Scenario 1, Case 2 - well defined experimental source environment,only blank as contaminant profile
 # change to only contamiant profiles to sink samples (so they are not source samples)
 metadata$SourceSink[metadata$SampleType == 'ContaminantProfile']&lt;-'sink'
@@ -306,20 +372,20 @@ mb_30000_results&lt;-runSourceTracker(st_otus,metadata,outdir,filebase,rarefacti
 ## ..........   1 of   18, depth=30000:  0.00 (0.00)    1.00 (0.00) 0.00 (0.00)
 ## ..........   2 of   18, depth=30000:  0.00 (0.00)    1.00 (0.00) 0.00 (0.00)
 ## ..........   3 of   18, depth=30000:  0.01 (0.00)    0.98 (0.00) 0.01 (0.00)
-## ..........   4 of   18, depth=30000:  0.00 (0.00)    0.95 (0.00) 0.04 (0.00)
-## ..........   5 of   18, depth=30000:  0.02 (0.00)    0.86 (0.00) 0.12 (0.00)
-## ..........   6 of   18, depth=30000:  0.04 (0.00)    0.71 (0.00) 0.26 (0.00)
-## ..........   7 of   18, depth=30000:  0.00 (0.00)    0.28 (0.00) 0.71 (0.00)
-## ..........   8 of   18, depth=30000:  0.00 (0.00)    0.44 (0.00) 0.56 (0.00)
-## ..........   9 of   18, depth=30000:  0.00 (0.00)    0.15 (0.00) 0.85 (0.00)
-## ..........  10 of   18, depth=  129:  0.00 (0.00)    0.00 (0.00) 1.00 (0.00)
-## ..........  11 of   18, depth=  369:  0.00 (0.00)    0.00 (0.00) 1.00 (0.00)
-## ..........  12 of   18, depth= 4818:  0.00 (0.00)    0.00 (0.00) 1.00 (0.00)
-## ..........  13 of   18, depth=10267:  0.00 (0.00)    0.00 (0.00) 1.00 (0.00)
-## ..........  14 of   18, depth=26463:  0.00 (0.00)    0.00 (0.00) 1.00 (0.00)
+## ..........   4 of   18, depth=30000:  0.00 (0.00)    0.96 (0.00) 0.04 (0.00)
+## ..........   5 of   18, depth=30000:  0.02 (0.00)    0.88 (0.00) 0.10 (0.00)
+## ..........   6 of   18, depth=30000:  0.05 (0.00)    0.72 (0.00) 0.24 (0.00)
+## ..........   7 of   18, depth=30000:  0.03 (0.00)    0.31 (0.00) 0.66 (0.01)
+## ..........   8 of   18, depth=30000:  0.00 (0.00)    0.43 (0.00) 0.57 (0.00)
+## ..........   9 of   18, depth=30000:  0.00 (0.00)    0.16 (0.00) 0.84 (0.00)
+## ..........  10 of   18, depth=  126:  0.00 (0.01)    0.00 (0.00) 1.00 (0.01)
+## ..........  11 of   18, depth=  240:  0.00 (0.00)    0.00 (0.00) 1.00 (0.00)
+## ..........  12 of   18, depth= 4510:  0.00 (0.00)    0.00 (0.00) 1.00 (0.00)
+## ..........  13 of   18, depth=11029:  0.00 (0.00)    0.00 (0.00) 1.00 (0.00)
+## ..........  14 of   18, depth=25865:  0.00 (0.00)    0.00 (0.00) 1.00 (0.00)
 ## ..........  15 of   18, depth=30000:  0.00 (0.00)    0.00 (0.00) 1.00 (0.00)
 ## ..........  16 of   18, depth=30000:  0.00 (0.00)    0.00 (0.00) 1.00 (0.00)
-## ..........  17 of   18, depth=19398:  0.00 (0.00)    0.00 (0.00) 1.00 (0.00)
+## ..........  17 of   18, depth=22905:  0.00 (0.00)    0.00 (0.00) 1.00 (0.00)
 ## ..........  18 of   18, depth=30000:  0.00 (0.00)    0.00 (0.00) 1.00 (0.00)</code></pre>
 <pre class="r"><code># Scenario 2, Case 1 - well defined contaminant source environments, undefined experimental environment
 # change the contamiant profiles back to a source environment
@@ -337,9 +403,9 @@ cpb_30000_results&lt;-runSourceTracker(st_otus,metadata,outdir,filebase,rarefact
 ## ..........   4 of   10, depth=30000:  0.00 (0.00)    0.00 (0.00) 1.00 (0.00)
 ## ..........   5 of   10, depth=30000:  0.00 (0.00)    0.00 (0.00) 1.00 (0.00)
 ## ..........   6 of   10, depth=30000:  0.00 (0.00)    0.01 (0.00) 0.99 (0.00)
-## ..........   7 of   10, depth=30000:  0.00 (0.00)    0.16 (0.01) 0.84 (0.01)
-## ..........   8 of   10, depth=30000:  0.00 (0.00)    0.00 (0.00) 1.00 (0.00)
-## ..........   9 of   10, depth=30000:  0.00 (0.00)    0.45 (0.01) 0.55 (0.01)
+## ..........   7 of   10, depth=30000:  0.00 (0.00)    0.25 (0.01) 0.74 (0.01)
+## ..........   8 of   10, depth=30000:  0.00 (0.00)    0.01 (0.00) 0.99 (0.00)
+## ..........   9 of   10, depth=30000:  0.00 (0.00)    0.54 (0.00) 0.46 (0.00)
 ## ..........  10 of   10, depth=30000:  0.00 (0.00)    0.00 (0.00) 1.00 (0.00)</code></pre>
 <pre class="r"><code># Scenario 2, Case 2 - only blank as contaminant profile
 # change to only contamiant profiles to sink samples (so they are not source samples)
@@ -358,19 +424,19 @@ b_30000_results&lt;-runSourceTracker(st_otus,metadata,outdir,filebase,rarefactio
 ## ..........   7 of   19, depth=30000:  0.00 (0.00)    1.00 (0.00)
 ## ..........   8 of   19, depth=30000:  0.00 (0.00)    1.00 (0.00)
 ## ..........   9 of   19, depth=30000:  0.00 (0.00)    1.00 (0.00)
-## ..........  10 of   19, depth=  129:  0.00 (0.01)    1.00 (0.01)
-## ..........  11 of   19, depth=  369:  0.01 (0.01)    0.99 (0.01)
-## ..........  12 of   19, depth= 4818:  0.00 (0.00)    1.00 (0.00)
-## ..........  13 of   19, depth=10267:  0.00 (0.00)    1.00 (0.00)
-## ..........  14 of   19, depth=26463:  0.00 (0.00)    1.00 (0.00)
+## ..........  10 of   19, depth=  126:  0.01 (0.01)    0.99 (0.01)
+## ..........  11 of   19, depth=  240:  0.00 (0.00)    1.00 (0.00)
+## ..........  12 of   19, depth= 4510:  0.01 (0.00)    0.99 (0.00)
+## ..........  13 of   19, depth=11029:  0.00 (0.00)    1.00 (0.00)
+## ..........  14 of   19, depth=25865:  0.00 (0.00)    1.00 (0.00)
 ## ..........  15 of   19, depth=30000:  0.00 (0.00)    1.00 (0.00)
 ## ..........  16 of   19, depth=30000:  0.00 (0.00)    1.00 (0.00)
-## ..........  17 of   19, depth=19398:  0.00 (0.00)    1.00 (0.00)
+## ..........  17 of   19, depth=22905:  0.00 (0.00)    1.00 (0.00)
 ## ..........  18 of   19, depth=30000:  0.00 (0.00)    1.00 (0.00)
 ## ..........  19 of   19, depth=30000:  0.00 (0.00)    1.00 (0.00)</code></pre>
 <pre class="r"><code># Save workspace
 save.image(&quot;mockDilutions_RunSourceTracker.RData&quot;)</code></pre>
-<p>This work outlines each step required for running the R version of SourceTracker on 16S rRNA gene experiments with samples that have varying starting material. SOurceTracker takes quite a bit of time and resources to run, so the RMarkdown file containing the analysis of the SourceTracker results are separate. The results from running this RMarkdown file are available here.</p>
+<p>This work outlines each step required for running the R version of SourceTracker on 16S rRNA gene experiments with samples that have varying starting material. SourceTracker takes quite a bit of time and resources to run, so the RMarkdown file containing the analysis of the SourceTracker results are separate. The results from running this RMarkdown file are available on Github in this repository and the code for evaluating the results is available <a href="./ControllingConatminants16S_SourceTracker.Rmd">here</a>.</p>
 </div>
 
 

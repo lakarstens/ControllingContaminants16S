@@ -1,0 +1,57 @@
+---
+title: "DiffResults"
+author: "Lisa Karstens Mark"
+date: "4/2/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Calculate differences
+
+ Load data from ControllingContaminantsResults.Rmd
+This section was not used and will be removed.......
+There has to be a better way, this is brute force....
+
+```{r}
+
+diff_results_expected <- results_original[,1:14] - results_expected[,3:16]
+diff_results_expected <- cbind(diff_results_expected, results_expected[,c(17,18)])
+
+
+diff_results_blank <- results_original[,1:14] - results_blank[,3:16]
+diff_results_blank <- cbind(diff_results_blank, results_blank[,c(17,18)])
+diff_results_decontam_0_1 <- results_original[,1:14] - results_decontam_0_1[,3:16]
+diff_results_decontam_0_1 <- cbind(diff_results_decontam_0_1, results_decontam_0_1[,c(17,18)])
+diff_results_decontam_0_2 <- results_original[,1:14] - results_decontam_0_2[,3:16]
+diff_results_decontam_0_2 <- cbind(diff_results_decontam_0_2, results_decontam_0_2[,c(17,18)])
+diff_results_decontam_0_3 <- results_original[,1:14] - results_decontam_0_3[,3:16]
+diff_results_decontam_0_3 <- cbind(diff_results_decontam_0_3, results_decontam_0_3[,c(17,18)])
+diff_results_decontam_0_4 <- results_original[,1:14] - results_decontam_0_4[,3:16]
+diff_results_decontam_0_4 <- cbind(diff_results_decontam_0_4, results_decontam_0_4[,c(17,18)])
+diff_results_decontam_0_5 <- results_original[,1:14] - results_decontam_0_5[,3:16]
+diff_results_decontam_0_5 <- cbind(diff_results_decontam_0_5, results_decontam_0_5[,c(17,18)])
+
+diff_results_filter_0_01 <- results_original[,1:14] - results_filter_0_01[,3:16]
+diff_results_filter_0_01 <- cbind(diff_results_filter_0_01, results_filter_0_01[,c(17,18)])
+diff_results_filter_0_1 <- results_original[,1:14] - results_filter_0_1[,3:16]
+diff_results_filter_0_1 <- cbind(diff_results_filter_0_1, results_filter_0_1[,c(17,18)])
+diff_results_filter_1 <- results_original[,1:14] - results_filter_1[,3:16]
+diff_results_filter_1 <- cbind(diff_results_filter_1, results_filter_1[,c(17,18)])
+
+diff_results_st_sc1_case1 <- results_original[,1:14] - results_st_sc1_case1[,3:16]
+diff_results_st_sc1_case1 <- cbind(diff_results_st_sc1_case1, results_st_sc1_case1[,c(17,18)])
+diff_results_st_sc1_case2 <- results_original[,1:14] - results_st_sc1_case2[,3:16]
+diff_results_st_sc1_case2 <- cbind(diff_results_st_sc1_case2, results_st_sc1_case2[,c(17,18)])
+diff_results_st_sc2_case1 <- results_original[,1:14] - results_st_sc2_case1[,3:16]
+diff_results_st_sc2_case1 <- cbind(diff_results_st_sc2_case1, results_st_sc2_case1[,c(17,18)])
+diff_results_st_sc2_case2 <- results_original[,1:14] - results_st_sc2_case2[,3:16]
+diff_results_st_st2_case2 <- cbind(diff_results_st_sc2_case2, results_st_sc2_case2[,c(17,18)])
+
+
+# create massive data table with all results
+results_all_diff <- bind_rows(diff_results_expected, diff_results_blank, diff_results_decontam_0_1,diff_results_decontam_0_2,diff_results_decontam_0_3, diff_results_decontam_0_4, diff_results_decontam_0_5, diff_results_filter_0_01, diff_results_filter_0_1, diff_results_filter_1, diff_results_st_sc1_case1, diff_results_st_sc1_case2,diff_results_st_sc2_case1, diff_results_st_sc2_case2 )
+
+```

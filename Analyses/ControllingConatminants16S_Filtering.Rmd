@@ -1,0 +1,377 @@
+---
+title: "Controlling Contaminants in 16S rRNA Gene Sequencing Experiments"
+author: "Lisa Karstens"
+date: "4/25/2018"
+output: html_document
+
+---
+
+### Introduction
+
+Increasingly there is interest in studying the microbiome from environments that contain few microbes (low microbial biomass). 16S rRNA gene sequencing allows researchers to study microbes from environments in a high throughput culture independent manner, but recent research has highlighted that this technique is prone to contaminants when applied to samples originating from low microbial biomass environments.
+
+We recently performed a study to understand the impact of decreasing microbial biomass on 16S rRNA gene sequencing experiments and evaluate the current computational strategies to control for contaminants (preprint available here). 
+
+Here, we provide the compiled R Markdown document to reproduce the analysis presented in the manuscript, diveded into 4 primary sections:
+
+* Introduction and evaluating contaminants (this document)
+* [Removing contaminant ASVs with decontam](./ControllingConatminants16S_decontam.Rmd)
+* [Removing contaminant ASVs with SourceTracker](./ControllingConatminants16S_SourceTrackerPrep.Rmd)
+* [Evaluating SourceTracker results](./ControllingConatminants16S_SourceTracker.Rmd)
+
+### Brief overview of the mock microbial dilution series dataset
+
+The dataset generated for this manuscript is a dilution series of a mock microbial community. 
+ZymoBIOMIC mock community standards was used, which consisted of eight bacterial species (*Pseudomonas aeruginosa*, *Escherichia coli*, *Salmonella enterica*, *Lactobacillus fermentum*, *Enterococcus faecalis*, *Staphylococcus aureus*, *Listeria monocytogenes*, *Bacillus subtilis*) and two fungal species (*Saccharomyces cerevisiae* and *Cryptococcus neoformans*). The mock mmicrobial community was diluted with microbial free water (Qiagen) in eight rounds of a serial three-fold dilution prior to DNA extraction. 
+
+The V4 region of the 16S rRNA gene was amplified and sequenced with Illumina MiSeq. The raw sequencing data is available here. Reads were processed using DADA2 to generate amplicon sequence variants (ASVs), which were used to generate the phyloseq object used in this analysis. 
+
+## Analysis of the mock microbial dilution series dataset
+
+### Set up the workspace
+
+This analysis uses many open source packages that are available on CRAN and Bioconductor.
+
+To run this analysis yourself, download the supplemental material here along with the R markdown file. Save these files in the same directory on your computer. 
+
+```{r set workspace, message=FALSE}
+# load libraries
+library(phyloseq)
+library(ggplot2) 
+library(tidyverse)
+library(RColorBrewer)
+library(reshape2)
+library(knitr)
+library(dplyr)
+library(kableExtra)
+library(gridExtra)
+# save session info (packages and versions loaded)
+session <- sessionInfo()
+
+```
+
+### Create functions to use in this analysis
+
+We created a function called expCompBarPlot to display the expected mock microbial ASVs in color and unexpected contaminants sequences in grayscale. 
+```{r defineFunctions }
+# Create function to plot bar plots with contaminants in grey scale and expected mock microbial sequences in color
+
+ expCompBarPlot <- function(physeq, exp_taxa, title){
+   ## physeq - phyloseq object that will be plotted
+   ## exp_taxa - taxa that are expected to be in the mock community 
+   ## title - title for plot
+#set up data_table
+  data_table <- as.data.frame(t(physeq@otu_table))
+
+  data_table$reference = FALSE
+  data_table$reference[rownames(data_table) %in% exp_taxa] = TRUE
+  sample_names <- sample_names(physeq)
+  data_table$id <- paste0('ASV_', 1:nrow(data_table))
+  dilution_labels <- sample_data(physeq)$Dilutions
+
+  set.seed(444)
+
+# define the colors to use for reference and non-reference OTUs/ASVs
+  ref_colors <- brewer.pal(sum(data_table$reference), "Paired")
+  other_colors <- sample(grey.colors(5, start = 0.5, end = 0.9), sum(!data_table$reference), replace = TRUE)
+
+# add a color variable to the data table
+  data_table$color <- rep(NA, nrow(data_table))
+  data_table$color[data_table$reference] <- ref_colors
+  data_table$color[!data_table$reference] <- other_colors
+
+# reshape the data table into a ggplot-friendly format, by gathering samples into a single column called "count"
+
+  color_gg <- data_table %>% select(id, sample_names, color) %>% gather("sample", "count", sample_names)
+  legend_color <- c(bright = ref_colors[2], dull = other_colors[2])
+  data_gg <- data_table %>% gather("sample", "count", sample_names)
+
+  data_gg <- inner_join(data_gg,color_gg)
+
+# create the composition bar plot
+  comp_bar <- ggplot(data_gg, aes(x = sample, y = count)) +
+    geom_col(aes(fill = color, group = reference, alpha = ifelse(reference, "bright", "dull")), width = 0.7, position = position_fill()) +
+    scale_fill_identity(guide = FALSE) +
+    scale_alpha_manual(name = "Sequence type",
+                     labels = c("expected", "other"),
+                     values = c(bright = 1, dull = 1),
+                     guide = guide_legend(override.aes = list(fill = c(ref_colors[4], "#AEAEAE")),
+                                          keywidth = NULL, keyheight = NULL)) +
+    labs(title = title, x = "Sample", y = "Relative Abundance") +
+    theme(legend.position = "right", legend.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 16),
+        plot.title = element_text(size = 16))
+  comp_bar
+ }
+
+# Define functions to evaluate filter performance
+eval_filter <- function(physeq, mock_taxa, recovered_otus, removed_otus, filter_method){
+  #  % of mock community ASVs correctly classified as mock community ASVs 
+  true_neg <- rowSums(recovered_otus[,colnames(recovered_otus) %in% mock_taxa])
+  # % of mock community incorrectly classified as mock community ASVs
+  false_neg <- rowSums(recovered_otus[,!colnames(recovered_otus) %in% mock_taxa])
+  #  identify non-mock community ASVs correctly classified as not belonging to mock   community
+  true_pos <- rowSums(removed_otus[,!colnames(removed_otus) %in% mock_taxa])
+  #  identify mock community ASVs incorrectly classified as not belonging to mock   community
+  false_pos <- rowSums(removed_otus[,colnames(removed_otus) %in% mock_taxa])
+
+  profile <- rbind(false_neg, false_pos,true_neg,true_pos)
+
+  long_profile <- melt(data = profile, 
+                 id.vars = rownames(), 
+                 variable.name = colnames(), 
+                 value.name = "Abundance"
+                )
+  names(long_profile)[names(long_profile)=="Var1"] <- "SequenceClass"
+  customPalette <- c('#969696','#bdbdbd', '#1B9E77', '#D95F02')
+
+  # Figures
+  classificationPlot <- ggplot(long_profile, aes(x = Var2, y = Abundance)) + 
+    geom_col(aes(fill = SequenceClass), width = 0.7, position = position_fill())  +
+    scale_fill_manual(values=customPalette) + theme(text = element_text(size=12)) +
+    labs(x = "Sample", y = 'Proportion of Reads') +
+      ggtitle(paste0('Sequence classification for \n  ', filter_method)) + 
+      theme(legend.position = "right", legend.title = element_text(size = 12),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 16),
+        plot.title = element_text(size = 16))
+
+  compositionPlot <- expCompBarPlot(physeq,mock_taxa,paste0('Recovered profile after \n ',filter_method))
+  # plot figures
+  grid.arrange(compositionPlot, classificationPlot, ncol = 2)
+}
+
+filter_results <- function(physeq_original, physeq_filter, physeq_removed, mock_taxa,filter_method){
+  ## physeq_original <- the original phyloseq object containing actual counts
+  ## physeq_filter <- the filtered phyloseq object containing actual counts
+  ## physeq_removed <- a phyloseq object of removed actual counts
+  ## mock_taxa <- list of mock taxa ASV sequences
+  
+  # extract out original normalized otu table
+  physeq_norm <- transform_sample_counts(physeq_original,function(x) 100* x/sum(x))
+  
+  original_otus <- as.matrix(as.data.frame(physeq_original@otu_table))
+  # identify the orginal proportion of contaminants
+  contaminants_original <- rowSums(original_otus[,!colnames(original_otus) %in% mock_taxa])
+  # identify the orginal proportion of mock community ASVs
+  mock_original <- rowSums(original_otus[,colnames(original_otus) %in% mock_taxa])
+  
+  # Normalize the filtered physloseq object to relative abundance (each sample sums to 100)
+  physeq_filter_norm <- transform_sample_counts(physeq_filter,function(x) 100* x/sum(x))
+  
+  # subset out the otu table of recovered otus (otus that are kept)
+  recovered_otus <- as.matrix(as.data.frame(physeq_filter@otu_table))
+  
+  # create a subset of removed otus for evaluation
+  removed_otus <- as.matrix(as.data.frame(physeq_removed@otu_table))
+  
+  #  % of mock community ASVs correctly classified as mock community ASVs 
+  true_neg <- rowSums(recovered_otus[,colnames(recovered_otus) %in% mock_taxa])
+  # % of mock community incorrectly classified as non-mock community ASVs
+  false_neg <- rowSums(recovered_otus[,!colnames(recovered_otus) %in% mock_taxa])
+  #  identify non-mock community ASVs correctly classified as not belonging to mock   community
+  true_pos <- rowSums(removed_otus[,!colnames(removed_otus) %in% mock_taxa])
+  #  identify mock community ASVs incorrectly classified as not belonging to mock   community
+  false_pos <- rowSums(removed_otus[,colnames(removed_otus) %in% mock_taxa])
+  
+  sensitivity <- true_pos/(true_pos + false_neg)
+  specificty <- true_neg/(true_neg + false_pos)
+  accuracy <- (true_pos + true_neg) / (false_pos + true_pos + false_neg + true_neg)
+  prevalence <- (true_pos + false_neg) / (false_pos + true_pos + false_neg + true_neg)
+
+  ## proportion of contaminants removed (of all total contaminant ASVs)
+  contaminants_removed = (rowSums(removed_otus[,!colnames(removed_otus) %in% mock_taxa])/ contaminants_original) * 100
+    ## proportion of mock removed (of all total mock ASVs)
+  mock_ASVs_removed = (rowSums(removed_otus[,colnames(removed_otus) %in% mock_taxa])/ mock_original) * 100
+  
+  ## total amount of conatminants remaining in ne
+  #contaminants_remaining =  rowSums(recovered_otus[,!colnames(recovered_otus) %in% mock_taxa])
+  # calculate alpha diverity and summary of abundances
+  diversity <- estimate_richness(physeq_filter, measures = c('Observed','Shannon','InvSimpson'))
+  rel_abundance <- as.data.frame(physeq_filter_norm@otu_table)
+  mock_abundance <- rel_abundance[, colnames(rel_abundance) %in% mock_taxa]
+  total_mock_abundance <- rowSums(mock_abundance)
+  con_abundance <- rowSums(rel_abundance[,!colnames(rel_abundance) %in% mock_taxa])
+  # return results
+  results <- cbind(contaminants_removed, mock_ASVs_removed,con_abundance, total_mock_abundance, diversity, mock_abundance,sensitivity , specificty, accuracy, prevalence, true_pos, true_neg, false_pos, false_neg)
+  # add filter_method to results table
+    results <- results %>%
+    mutate(method =  filter_method) %>%
+    mutate(sample_names = rownames(results))
+
+  return(results)
+  }
+
+summary_table <- function(results, filter_method){
+  
+  caption_text = paste0(filter_method,' summary')
+  drop_col <- c('true_neg','true_pos','false_neg','false_pos','method')
+  results <- results %>% select(-one_of(drop_col))
+  kable(t(results), digits = 2, caption = caption_text) %>%
+    kable_styling(bootstrap_options = c("striped", "hover"), full_width = F) %>%
+    group_rows("Percent Removed", 1,2) %>%
+    group_rows("Percent Remaining after Contaminant Removal", 3,4) %>%
+    group_rows("Diversity Estimates after Contaminant Removal", 5,7) %>% 
+    group_rows("Mock Abundances after Contaminant Removal", 8,ncol(results) - 2)
+
+}
+# define function for evaluateing abundance filtering
+abundance_filter_eval <- function(physeq, abundance_filter){
+  # normalize physeq to 100
+  physeq_norm <- transform_sample_counts(physeq,function(x) 100* x/sum(x))
+  # subset out the otu table, name rec_otu for recovered otus (otus that are kept)
+  # name relative abundance otu table rec_otu_rel
+  rec_otu_rel <- as.matrix(as.data.frame(physeq_norm@otu_table))
+  rec_otu <- as.matrix(as.data.frame(physeq@otu_table))
+  
+  # remove low abundance sequences per sample
+  rec_otu_rel[rec_otu_rel <= abundance_filter] <- 0
+  rec_otu[rec_otu_rel == 0] <- 0
+  ps_filt <- physeq
+  otu_table(ps_filt) <- otu_table(rec_otu, taxa_are_rows = FALSE)
+
+  # create a subset of removed otus for evaluation
+  rem_otu_rel <- as.matrix(as.data.frame(physeq_norm@otu_table))
+  rem_otu <- as.matrix(as.data.frame(physeq@otu_table))
+  rem_otu[rem_otu_rel > abundance_filter] <- 0
+  ps_rem <- physeq
+  otu_table(ps_rem) <- otu_table(rem_otu, taxa_are_rows = FALSE)
+
+  # plot results
+  eval_filter(ps_filt, mock_taxa, rec_otu,rem_otu, paste0('Abundance less than ', abundance_filter, '% removed'))
+  
+  # return results
+  results <- filter_results(physeq, ps_filt, ps_rem, mock_taxa,paste0('Abundance filter, ',abundance_filter) )
+  return(results)
+  }
+
+```
+
+### Load the dataset 
+This analysis assumes that you have the RData file and R Markdown file saved in the same directory. 
+```{r loadData}
+## Load the dataset
+load("mockDilutionsPrep.RData")
+```
+
+This work outlines each step required for evaluating the impact of contaminants on 16S rRNA gene experiments with samples that have varying starting material. The conclusions from this analysis is that contamiant ASVs increase with decreasing starting material and lead to distorted microbial community profiles and overestimated alpha diversity measurements. 
+
+While contaminants are prevelant in low microbial biomass samples, and potentially unavoidable, all hope is not lost. There are a few computational approaches to identify and remove contaminant sequences from 16S rRNA gene sequencing data. To see how we evauated these different methods for identifying and removing contaminants from this dataset, see: 
+* [Removing contaminant ASVs with decontam](./ControllingConatminants16S_decontam.Rmd)
+* [Removing contaminant ASVs with SourceTracker](./ControllingConatminants16S_SourceTrackerPrep.Rmd)
+* [Evaluating SourceTracker results](./ControllingConatminants16S_SourceTracker.Rmd)
+
+This RMarkdown file provides the code for evaluating how unrecommended methods - removing all sequences that appear in a blank control and an abundance filter would perfrom for removing contaminants.
+
+# Create expected results based on the known sequences from the mock microbial communtiy
+
+```{r}
+# phyloseq object with only expected sequences
+mock_ps_exp <- prune_taxa(taxa_names(mock_ps_pure),mock_ps)
+# phyloseq object with only contaminant sequences
+mock_ps_not_exp <- prune_taxa(!taxa_names(mock_ps) %in% taxa_names(mock_ps_pure) ,mock_ps)
+
+## create a summary of results with expected sequences only
+results_expected <- filter_results(mock_ps, mock_ps_exp, mock_ps_not_exp ,mock_taxa,'Expected Results')
+summary_table(results_expected,'Expected Results')
+```
+
+
+## Create a summary of results before contaminant removal
+```{r}
+# calculate alpha diverity and summary of abundances
+  diversity <- estimate_richness(mock_ps, measures = c('Observed','Shannon','InvSimpson'))
+  rel_abundance <- as.data.frame(mock_ps_norm@otu_table)
+  mock_abundance <- rel_abundance[, colnames(rel_abundance) %in% mock_taxa]
+  total_mock_abundance <- rowSums(mock_abundance)
+  con_abundance <- rowSums(rel_abundance[,!colnames(rel_abundance) %in% mock_taxa])
+  
+  ## Add true positive/true negative ect for 'uncorrected plot'
+  mock_otus <- as.matrix(as.data.frame(mock_ps@otu_table))
+  #  % of mock community ASVs correctly classified as mock community ASVs 
+  true_neg <- rowSums(mock_otus[,colnames(mock_otus) %in% mock_taxa])
+  # % of mock community incorrectly classified as mock community ASVs
+  false_neg <- rowSums(mock_otus[,!colnames(mock_otus) %in% mock_taxa])
+  
+  # true_pos and false_pos do not exist  
+
+  
+  # return results
+  results_original <- cbind(con_abundance, total_mock_abundance, diversity, mock_abundance, true_neg, false_neg)
+  # add filter_method to results table
+    results_original <- results_original %>%
+    mutate(method =  'Original Data') %>%
+    mutate(sample_names = rownames(results_original))
+    
+summary_table(results_original,'Original results - no contaminant removal')
+```
+
+# Classify sequences as true mock, false mock, true contam, false contam
+We can also evaluate the success of removing contaminants by identifying how many contaminants were removed and remain after filtering. 
+
+We will use a similar scheme that was used for evaluating SourceTracker and decontam in our manuscript:
+
+* true_neg - ASVs correctly identified as mock community ASVs (correctly remianing int the dataset after filtering)
+* false_neg - ASVs incorrectly identified as mock community ASVs (unremoved contaminants)
+* true_pos - ASVs correctly identified as contaminant ASVs (correctly removing a contaminant ASV from the dataset)
+* false_pos - ASVs incorrectly identified as contamiant ASVs (incorrectly removing a mock community read from the dataset)
+
+# Removing sequences that appear in a blank control
+First, we will remove all sequences that appear in the blank control from the mock community dilution series to see how this method would perform
+
+```{r blank_removal,  fig.width=10, fig.height=4}
+# removing all ASVs present in a blank control sample
+# create an otu table to perform filtering on
+# rec_otu -> 'recovered otus', will be the otu table results after filtering
+rec_otu <- as.matrix(as.data.frame(mock_ps@otu_table))
+blank_taxa <- taxa_names(blank_ps)
+# remove ASVs from blank
+rec_otu <- rec_otu[,!colnames(rec_otu) %in% blank_taxa]
+# create a phyloseq object with the filtered otu table
+ps_blank_filter <- mock_ps
+otu_table(ps_blank_filter) <- otu_table(rec_otu, taxa_are_rows = FALSE)
+
+# create a subset of removed otus for evaluation
+# rem_otu -> 'removed otus' the otus that were removed during filtering
+rem_otu <- as.matrix(as.data.frame(mock_ps@otu_table))
+rem_otu <- rem_otu[,colnames(rem_otu) %in% blank_taxa]
+# create a phyloseq object with removed OTUs as the otu table
+ps_rem <- mock_ps
+otu_table(ps_rem) <- otu_table(rem_otu, taxa_are_rows = FALSE)
+
+# run the evaluation function to summarize results
+eval_filter(ps_blank_filter,mock_taxa, rec_otu, rem_otu, 'Blank control removal')
+
+results_blank <- filter_results(mock_ps, ps_blank_filter, ps_rem,mock_taxa,'Blank control removal')
+summary_table(results_blank,'Blank control removal')
+```
+
+Removing all ASVs that were present in the blank control was too harsh - it ended up removing many of the expected mock community ASVs (6 out of 9 of the mock taxa - up to 69.1% of the expected sequences). Additionally, this approach still missed many contaminant taxa. 
+
+# Removing sequences based on an abundance filter
+Another approach that has been used in the literature is applying an abundance filter to remove noise. There is not much guidance on how researchers choose (or even use) a filter. We evaluated filters ranging from 0.01% to 1%.
+
+```{r filter, fig.width=10, fig.height=4}
+
+results_filter_0_01 <- abundance_filter_eval(mock_ps,0.01)
+summary_table(results_filter_0_01, 'Abundance filter, 0.01%')
+results_filter_0_1 <- abundance_filter_eval(mock_ps,0.1)
+summary_table(results_filter_0_1, 'Abundance filter, 0.1%')
+results_filter_1 <- abundance_filter_eval(mock_ps,1)
+summary_table(results_filter_1, 'Abundance filter, 1%')
+
+
+```
+
+# Save workspace
+```{r}
+vars_to_keep <- ls(pattern = 'results')
+vars_to_rm <- ls()
+vars_to_rm <-vars_to_rm[!vars_to_rm %in% vars_to_keep]
+rm(list = vars_to_rm)
+rm(vars_to_rm, vars_to_keep, filter_results)
+
+
+save.image('results_filtering.RData')
+```

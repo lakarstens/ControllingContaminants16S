@@ -9,6 +9,6 @@ This repository contains the compiled R Markdown documents to reproduce the anal
 * [Removing contaminant ASVs with decontam](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_decontam.html)
 * [Removing contaminant ASVs with SourceTracker](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_SourceTrackerPrep.html)
 * [Evaluating SourceTracker results](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_SourceTracker.html)
-* [Final evaluation of all methods](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminantsResults.html)
+* [Final evaluation of all methods](https://lakarstens.github.io/ControllingContaminants16S/Analyses/Analyses/ControllingContamiantsResults.html)
 
 We hope that this will serve as a resource and tutorial for those wishing to use these computational approaches on their own data. 

@@ -1,7 +1,7 @@
 ---
 title: "ComparingResults"
 author: "Lisa Karstens"
-date: "3/15/2019"
+date: "5/6/2019"
 output: html_document
 ---
 
@@ -10,10 +10,22 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ## Overview
-This RMarkdown file documents the analyses that are presented in 
+### Introduction
 
+Increasingly there is interest in studying the microbiome from environments that contain few microbes (low microbial biomass). 16S rRNA gene sequencing allows researchers to study microbes from environments in a high throughput culture independent manner, but recent research has highlighted that this technique is prone to contaminants when applied to samples originating from low microbial biomass environments.
 
+We recently performed a study to understand the impact of decreasing microbial biomass on 16S rRNA gene sequencing experiments and evaluate the current computational strategies to control for contaminants (preprint available here). 
 
+Here, we provide the compiled R Markdown document to reproduce the analysis presented in the manuscript, divided into 6 primary sections:
+
+* [Introduction and evaluating contaminants](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S.html)
+* Removing contaminant ASVs with filtering methods (this document)
+* [Removing contaminant ASVs with decontam](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_decontam.html)
+* [Removing contaminant ASVs with SourceTracker](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_SourceTrackerPrep.html)
+* [Evaluating SourceTracker results](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_SourceTracker.html)
+* Final evaluation of all methods (this document)
+
+Here, we provide the compiled R Markdown document to reproduce the analyses of the mock microbial community presented in the manuscript. Readers interested in the details of how to use the different methods should click on the respective links above. 
 
 ## Setup workspace 
  - Load libraries used in this analysis
@@ -26,6 +38,8 @@ library(dplyr)
 library(kableExtra)
 library(ggplot2)
 library(ggpubr)
+library(knitr)
+options(digits=2)
 
 load('results_filtering.RData')
 load('results_decontam.RData')
@@ -53,7 +67,7 @@ This loaded a LOT of data! Each method that was evaluated has its own results va
  All of these objects have the same overall structure, but a few modifications are needed to make everything work together (and look nice).  
 
 ## Modifications
-We need to make a few adjustments to the result dataframes to make them easier to manage, summarize, and use for analysis.
+We need to make a few adjustments to the result data frames to make them easier to manage, summarize, and use for analysis.
 
 These changes are documented as comments. 
 
@@ -107,10 +121,10 @@ results_all$method_type <- factor(results_all$method_type, levels = c("Uncorrect
 The results_all variable contains all of our results in one nice organized data.frame. However, this is not the best format for everything.
 
 Here, we subset the data into
- 1. results_asv_long  - This variable has only the ASV abuandance and associated data in long format to make it easy to work with ggplot et al.  
+ 1. results_asv_long  - This variable has only the ASV abundance and associated data in long format to make it easy to work with ggplot et al.  
  2. results_limited - This variable has only a subset of samples spanning low, moderate, and high levels of contaminants (represented by D3, D6, and D8)
- 3. results_asv_limited_long - This variable has ony the ASV abundance with associated data from a subset of dilution series samples and is in long format
- 4. exp_uncor_data - this variable has the results for the orginal uncorrected data and the expected results if our contamiant removal was perfect. 
+ 3. results_asv_limited_long - This variable has only the ASV abundance with associated data from a subset of dilution series samples and is in long format
+ 4. exp_uncor_data - this variable has the results for the original uncorrected data and the expected results if our contaminant removal was perfect. 
  
 ```{r }
 
@@ -136,11 +150,11 @@ exp_uncor_data <- results_all %>% filter(method %in% c('Expected Results', 'Unco
 
 # Summarize results
 
-We wanted to succintly be able to evaluate the performance of each method and compare across methods. There are many ways to do this, we chose to use a classification scheme and evaluate performance based on common classification metrics which are commonly used and easy to interpret such as accuracy.
+We wanted to succinctly be able to evaluate the performance of each method and compare across methods. There are many ways to do this, we chose to use a classification scheme and evaluate performance based on common classification metrics which are commonly used and easy to interpret such as accuracy.
 
 Accuracy measures the proportion of classifications that were correct. In our case, this is the number of ASVs correctly classified as contaminant ASVs (True Positives) AND number of ASVs correctly classified as mock community ASVs (True Negatives).
 
-We summarized how accurate each method was by plotting the accuracy by the prevalence of contaminant ASVs (in the orginal sample) for each method. 
+We summarized how accurate each method was by plotting the accuracy by the prevalence of contaminant ASVs (in the original sample) for each method. 
 
 
 ```{r fig.width=10, fig.height=4}
@@ -183,7 +197,7 @@ ggplot(., aes(x = prevalence, y = sensitivity, color = method)) +
 
 ```
 
-In addition to calculating classification metrics, we also evaluated the effect of removing the contamaint ASVs on the summary metrics typically used in microbiome studies - alpha diversity metrics such as the number of Observed ASVs, Shannon Diversity, and Inverse Simpson indices. 
+In addition to calculating classification metrics, we also evaluated the effect of removing the contaminant ASVs on the summary metrics typically used in microbiome studies - alpha diversity metrics such as the number of Observed ASVs, Shannon Diversity, and Inverse Simpson indices. 
 
 Alpha diversity measures
 ```{r fig.width=10, fig.height=4}
@@ -205,7 +219,7 @@ ggplot(., aes(x = sample_names, y = Value, shape = method)) +
         strip.text.x = element_text(size = 14)) 
 ```
 
-From the above plot, we can see that leaving contaminants unaccounted for can lead to drastically inflated values of alpha diversity. We also evaluated the alpha diversity measures after removing contmainants (Supplemental Figure 2). 
+From the above plot, we can see that leaving contaminants unaccounted for can lead to drastically inflated values of alpha diversity. We also evaluated the alpha diversity measures after removing contaminants (Supplemental Figure 2). 
 
 ```{r fig.width=10, fig.height=4}
 
@@ -410,7 +424,7 @@ classificationPlot_sourcetracker <- z
 ```
 
 
-## Composition (Figure 3)
+## Composition (Supplemental Figure 3)
 
 
 ```{r fig.width=10, fig.height=8}

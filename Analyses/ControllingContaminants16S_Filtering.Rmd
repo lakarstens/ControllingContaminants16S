@@ -1,7 +1,7 @@
 ---
 title: "Controlling Contaminants in 16S rRNA Gene Sequencing Experiments"
 author: "Lisa Karstens"
-date: "4/25/2018"
+date: "5/6/2019"
 output: html_document
 
 ---
@@ -12,19 +12,18 @@ Increasingly there is interest in studying the microbiome from environments that
 
 We recently performed a study to understand the impact of decreasing microbial biomass on 16S rRNA gene sequencing experiments and evaluate the current computational strategies to control for contaminants (preprint available here). 
 
-Here, we provide the compiled R Markdown document to reproduce the analysis presented in the manuscript, diveded into 4 primary sections:
+Here, we provide the compiled R Markdown document to reproduce the analysis presented in the manuscript, divided into 6 primary sections:
 
-* Introduction and evaluating contaminants (this document)
-* [Removing contaminant ASVs with decontam](./ControllingConatminants16S_decontam.Rmd)
-* [Removing contaminant ASVs with SourceTracker](./ControllingConatminants16S_SourceTrackerPrep.Rmd)
-* [Evaluating SourceTracker results](./ControllingConatminants16S_SourceTracker.Rmd)
+* [Introduction and evaluating contaminants](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S.html)
+* Removing contaminant ASVs with filtering methods (this document)
+* [Removing contaminant ASVs with decontam](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_decontam.html)
+* [Removing contaminant ASVs with SourceTracker](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_SourceTrackerPrep.html)
+* [Evaluating SourceTracker results](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_SourceTracker.html)
+* [Final evaluation of all methods](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminantsResults.html)
 
-### Brief overview of the mock microbial dilution series dataset
+Here, we provide the compiled R Markdown document to reproduce the initial analysis of the mock microbial community without removing contaminants (referred to as no filter), as well as the ideal situation where all contaminants are removed (referred to as expected results). We also evaluate using the negative control as a filter, as well as a series of relative abundance filters as approached for removing contaminants from 16S rRNA gene sequencing experiments.
 
-The dataset generated for this manuscript is a dilution series of a mock microbial community. 
-ZymoBIOMIC mock community standards was used, which consisted of eight bacterial species (*Pseudomonas aeruginosa*, *Escherichia coli*, *Salmonella enterica*, *Lactobacillus fermentum*, *Enterococcus faecalis*, *Staphylococcus aureus*, *Listeria monocytogenes*, *Bacillus subtilis*) and two fungal species (*Saccharomyces cerevisiae* and *Cryptococcus neoformans*). The mock mmicrobial community was diluted with microbial free water (Qiagen) in eight rounds of a serial three-fold dilution prior to DNA extraction. 
-
-The V4 region of the 16S rRNA gene was amplified and sequenced with Illumina MiSeq. The raw sequencing data is available here. Reads were processed using DADA2 to generate amplicon sequence variants (ASVs), which were used to generate the phyloseq object used in this analysis. 
+For more information about the experimental design and preprocessing of the data, see the [**Introduction and evaluating contaminants**](./ControllingContaminants16S.Rmd) section. For more information on other methods to remove contaminants, see the relevant link above.
 
 ## Analysis of the mock microbial dilution series dataset
 
@@ -42,6 +41,7 @@ library(tidyverse)
 library(RColorBrewer)
 library(reshape2)
 library(knitr)
+options(digits=2)
 library(dplyr)
 library(kableExtra)
 library(gridExtra)
@@ -255,14 +255,14 @@ This analysis assumes that you have the RData file and R Markdown file saved in 
 load("mockDilutionsPrep.RData")
 ```
 
-This work outlines each step required for evaluating the impact of contaminants on 16S rRNA gene experiments with samples that have varying starting material. The conclusions from this analysis is that contamiant ASVs increase with decreasing starting material and lead to distorted microbial community profiles and overestimated alpha diversity measurements. 
+This work outlines each step required for evaluating the impact of contaminants on 16S rRNA gene experiments with samples that have varying starting material. The conclusions from this analysis is that contaminant ASVs increase with decreasing starting material and lead to distorted microbial community profiles and overestimated alpha diversity measurements. 
 
-While contaminants are prevelant in low microbial biomass samples, and potentially unavoidable, all hope is not lost. There are a few computational approaches to identify and remove contaminant sequences from 16S rRNA gene sequencing data. To see how we evauated these different methods for identifying and removing contaminants from this dataset, see: 
+While contaminants are prevalent in low microbial biomass samples, and potentially unavoidable, all hope is not lost. There are a few computational approaches to identify and remove contaminant sequences from 16S rRNA gene sequencing data. To see how we evaluated these different methods for identifying and removing contaminants from this data set, see: 
 * [Removing contaminant ASVs with decontam](./ControllingConatminants16S_decontam.Rmd)
 * [Removing contaminant ASVs with SourceTracker](./ControllingConatminants16S_SourceTrackerPrep.Rmd)
 * [Evaluating SourceTracker results](./ControllingConatminants16S_SourceTracker.Rmd)
 
-This RMarkdown file provides the code for evaluating how unrecommended methods - removing all sequences that appear in a blank control and an abundance filter would perfrom for removing contaminants.
+This RMarkdown file provides the code for evaluating how unrecommended methods - removing all sequences that appear in a blank control and an abundance filter would perform for removing contaminants.
 
 # Create expected results based on the known sequences from the mock microbial communtiy
 
@@ -312,10 +312,10 @@ We can also evaluate the success of removing contaminants by identifying how man
 
 We will use a similar scheme that was used for evaluating SourceTracker and decontam in our manuscript:
 
-* true_neg - ASVs correctly identified as mock community ASVs (correctly remianing int the dataset after filtering)
+* true_neg - ASVs correctly identified as mock community ASVs (correctly remaining int the data set after filtering)
 * false_neg - ASVs incorrectly identified as mock community ASVs (unremoved contaminants)
-* true_pos - ASVs correctly identified as contaminant ASVs (correctly removing a contaminant ASV from the dataset)
-* false_pos - ASVs incorrectly identified as contamiant ASVs (incorrectly removing a mock community read from the dataset)
+* true_pos - ASVs correctly identified as contaminant ASVs (correctly removing a contaminant ASV from the data set)
+* false_pos - ASVs incorrectly identified as contaminant ASVs (incorrectly removing a mock community read from the data set)
 
 # Removing sequences that appear in a blank control
 First, we will remove all sequences that appear in the blank control from the mock community dilution series to see how this method would perform
@@ -375,3 +375,5 @@ rm(vars_to_rm, vars_to_keep, filter_results)
 
 save.image('results_filtering.RData')
 ```
+
+This work demonstrates using various filtering methods for identifying and removing contaminants from a 16S rRNA gene sequencing experiment. We were able to evaluate the performance of this method since we used a dilution series of a mock microbial community, where the expected composition of the samples are known. We also evaluated more sophisticated methods for contaminant identification and removal: the decontam frequency method, which is documented [here](.ControllingContaminants16S_decontam.Rmd) and SourceTracker, which is documented [here](.ControllingContaminants16S_SourceTrackerPrep.Rmd). 

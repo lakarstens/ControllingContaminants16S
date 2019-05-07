@@ -6,12 +6,13 @@ output: html_document
 ## Introduction
 We recently performed a study to understand the impact of decreasing microbial biomass on 16S rRNA gene sequencing experiments and evaluate the current computational strategies to control for contaminants (preprint available here). 
 
-Here, we provide the compiled R Markdown document to reproduce the analysis presented in the manuscript, divided into 4 primary sections:
-
-* [Introduction and evaluating contaminants](./ControllingConatminants16S.Rmd)
-* Removing contaminant ASVs with decontam (this document)
-* [Removing contaminant ASVs with SourceTracker](./ControllingConatminants16S_SourceTrackerPrep.Rmd)
-* [Evaluating SourceTracker results](ControllingConatminants16S_SourceTracker.Rmd)
+Here, we provide the compiled R Markdown document to reproduce the analysis presented in the manuscript, divided into 6 primary sections:
+* [Introduction and evaluating contaminants](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S.html)
+* [Removing contaminant ASVs with filtering methods](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_Filtering.html)
+* Removing contaminant ASVs with decontam(this document)
+* [Removing contaminant ASVs with SourceTracker](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_SourceTrackerPrep.html)
+* [Evaluating SourceTracker results](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_SourceTracker.html)
+* [Final evaluation of all methods](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminantsResults.html)  
 
 For more information about the experimental design and preprocessing of the data, see the [**Introduction and evaluating contaminants**](./ControllingConatminants16S.Rmd) section.  
 
@@ -26,7 +27,7 @@ This document assumes that you have read **Introduction and evaluating contamina
 
 ### Set up the workspace
 
-This analysis uses freely available open source packages that are avaiable on CRAN and Bioconductor.
+This analysis uses freely available open source packages that are available on CRAN and Bioconductor.
 
 To run this analysis yourself, download the supplemental material here along with the R markdown file. 
 
@@ -39,6 +40,7 @@ library(reshape2)
 library(phyloseq)
 library(decontam); packageVersion("decontam")
 library(knitr)
+options(digits=2)
 library(kableExtra)
 library(gridExtra)
 
@@ -67,12 +69,12 @@ Our new object contam.freq contains the results from running decontam. This obje
 
 * contam.freq\$freq - 
 * contam.freq\$p.freq - p-value for each ASV for the frequency method
-* contam.freq\$prev - the number of times each ASV appears across the dataset
+* contam.freq\$prev - the number of times each ASV appears across the data set
 * contam.freq\$p.prev - p-value for each ASV for the prevalence method (NA if the prevalence method is not used)
 * contam.freq\$p - the p-value for each ASV used for classifying contaminants
 * contam.freq\$contaminant - indicates if an ASV is considered a contaminant (TRUE) or not (FALSE) based on criteria provided in the function call. 
 
-All of these values can be reviewed by viewing the contam.freq dataframe. Here we will create a temporary dataframe with shortened rownames for viewing since our rownames are the ASV sequences and are quite long (making viewing difficult).
+All of these values can be reviewed by viewing the contam.freq data frame. Here we will create a temporary data frame with shortened rownames for viewing since our rownames are the ASV sequences and are quite long (making viewing difficult).
 ```{r }
 ## Create a temporary copy of contam.freq with shorter rownames for easy display
 temp_contam.freq <- contam.freq
@@ -90,7 +92,7 @@ set.seed(100)
 plot_frequency(mock_ps, taxa_names(mock_ps)[sample(which(contam.freq$contaminant),1)], conc="DNA_conc")
 ```
 
-Next, we use the contam.freq\$contaminant result along with the prune_taxa phyloseq function to create a phyloseq object without the suspected contmaminants.  
+Next, we use the contam.freq\$contaminant result along with the prune_taxa phyloseq function to create a phyloseq object without the suspected contaminants.  
 ```{r }
 # create phyloseq object with contaminant ASVs removed  
 ps.noncontam.freq <- prune_taxa(!contam.freq$contaminant, mock_ps)
@@ -115,7 +117,7 @@ ps_norm_exp <- prune_samples(sample_names(ps_norm_exp) %in% sample_names(ps_remo
 print(sample_sums(ps_removed_prop)/(100-sample_sums(ps_norm_exp)) * 100)
 
 ```
-We can also dentify the percentage of contaminant still remaining in the dataset
+We can also identify the percentage of contaminant still remaining in the data set
 ```{r}
 # Identify the percentage of contaminant still remaining in the dataset
 # normalize the post-decontam phyloseq object to 100
@@ -133,7 +135,7 @@ We can also check that none of the expected ASVs were removed.
 intersect(taxa_names(contam.freq), taxa_names(mock_ps))
 ```
 
-We repeat this on various levels of the threshold parameter to identify the ideal one to use on our dataset. To do this, we create a function called **testIsContam** 
+We repeat this on various levels of the threshold parameter to identify the ideal one to use on our data set. To do this, we create a function called **testIsContam** 
 ```{r}
 # Create a function to evaluate the performance of decontam at different thresholds
 testIsContam <-  function(physeq, thr, mock_taxa){
@@ -268,79 +270,14 @@ ps.noncontam.freq <- prune_taxa(!contam.freq$contaminant, mock_ps)
 
 ```
 
-We plot the stacked bar plot of the contaminant corrected microbiome profiles for the mock microbial community dilution series (Figure 3C). There are still some contaminants, but they are greatly reduced. 
+We plot the stacked bar plot of the contaminant corrected microbiome profiles for the mock microbial community dilution series. There are still some contaminants, but they are greatly reduced. 
 
 ```{r fig.width=8,fig.height=4}
 expCompBarPlot(ps.noncontam.freq, mock_taxa, 'Contaminant removed, Decontam (frequency, thr = 0.5)')
 ```
-We can also evaluate the success of decontam by identifying how well it classified the ASVs.
-We will use a similar scheme that was used for evaluating SourceTracker in our manuscript:
 
-* true_neg - ASVs correctly identified as mock community ASVs
-* false_neg - ASVs incorrectly identified as mock community ASVs (unremoved contaminants)
-* true_pos - ASVs correctly identified as contaminant ASVs
-* false_pos - ASVs incorrectly identified as contamiant ASVs
-```{r }
-# Summarize ASV classification similar to the approach taken with SourceTracker
-# Create zero filled OTU table
-otu_temp <- as.data.frame(mock_ps@otu_table)
-otu_temp[otu_temp>0] <- 0
 
-# Write out the decontam corrected ASV table as a dataframe
-otu_mock_nc <-as.data.frame(ps.noncontam.freq@otu_table)
-# normalize to relative abundance of initial data
-otu_mock_nc <- otu_mock_nc/sample_sums(mock_ps)
-
-# Fill in the zero filled OTU table with the decontam corrected microbial profile
-nc_otus <- otu_temp
-nc_otus[,colnames(otu_mock_nc)] <- otu_mock_nc
-
-# Create contaminant otu table
-cp_c <- prune_taxa(contam.freq$contaminant, mock_ps)
-cp_c <- prune_samples(sample_names(mock_ps), cp_c)
-otu_cp_c <-as.data.frame(cp_c@otu_table)
-# normalize to relative abundance of initial data
-otu_cp_c <- otu_cp_c/sample_sums(mock_ps)
-
-# Fill in the zero filled OTU table with the decontam identified contaminants
-con_otus <- otu_temp
-con_otus[,colnames(otu_cp_c)] <- otu_cp_c
-
-# identify ASVs correctly identified as mock
-true_neg <- rowSums(nc_otus[,colnames(nc_otus) %in% mock_taxa])
-# identify ASVs incorrectly identified as mock
-false_neg <- rowSums(nc_otus[,!colnames(nc_otus) %in% mock_taxa])
-
-### identify sequences correctly identified as contaminants
-true_pos <- rowSums(con_otus[,!colnames(con_otus) %in% mock_taxa])
-### identify sequences incorrectly identified as contaminants
-false_pos <- rowSums(con_otus[,colnames(con_otus) %in% mock_taxa])
-
-# Plot classifications per sample (Figure 5A)
-asv_profile <- rbind(false_neg,false_pos,true_neg,true_pos)
-colnames(asv_profile) <- c('D0', 'D1','D2','D3', 'D4', 'D5', 'D6', 'D7', 'D8')
-
-long_asv_profile <- melt(data = asv_profile, 
-                 id.vars = rownames(), 
-                 variable.name = colnames(), 
-                 value.name = "Abundance"
-                )
-
-# Create color palette
-customPalette <- c('#969696','#bdbdbd','#1B9E77', '#E7298A')
-
-# plot
-ggplot(long_asv_profile, aes(x = Var2, y = Abundance)) + geom_col(aes(fill = Var1), width = 0.7, position = position_fill())  + scale_fill_manual(values=customPalette) + theme(text = element_text(size=12)) + labs(x = "Dilution Series", y = 'Proportion of Reads')
-
-print('Proportion of contaminants remaining after decontam:')
-print(format(round(false_neg*100, 2), nsmall = 2))
-
-print('Proportion of contaminants identified by decontam:')
-print(format(round(true_pos/(true_pos+false_neg)*100, 2), nsmall = 2))
-
-```
-
-This work demonstrates using the frequency method implemented in decontam for identifying and removing contaminants from a 16S rRNA gene sequencing experiment. We were able to evaluate the perfomance of this method since we used a dilution series of a mock microbial community, where the expected composition of the samples are known. Decontam is one analytical method for identifying and removing contaminants from 16S rRNA gene sequencing data. We also evaluated using SourceTracker, which is documented [here](.ControllingConatminants16S_SourceTrackerPrep.Rmd). 
+This work demonstrates using the frequency method implemented in decontam for identifying and removing contaminants from a 16S rRNA gene sequencing experiment. We were able to evaluate the performance of this method since we used a dilution series of a mock microbial community, where the expected composition of the samples are known. Decontam is one analytical method for identifying and removing contaminants from 16S rRNA gene sequencing data. We also evaluated using SourceTracker, which is documented [here](.ControllingContaminants16S_SourceTrackerPrep.Rmd). 
 
 ```{r}
 vars_to_keep <- ls(pattern = 'results')

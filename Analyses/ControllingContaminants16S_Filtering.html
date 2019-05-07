@@ -187,7 +187,7 @@ $(document).ready(function () {
 
 <h1 class="title toc-ignore">Controlling Contaminants in 16S rRNA Gene Sequencing Experiments</h1>
 <h4 class="author"><em>Lisa Karstens</em></h4>
-<h4 class="date"><em>4/25/2018</em></h4>
+<h4 class="date"><em>5/6/2019</em></h4>
 
 </div>
 
@@ -196,18 +196,17 @@ $(document).ready(function () {
 <h3>Introduction</h3>
 <p>Increasingly there is interest in studying the microbiome from environments that contain few microbes (low microbial biomass). 16S rRNA gene sequencing allows researchers to study microbes from environments in a high throughput culture independent manner, but recent research has highlighted that this technique is prone to contaminants when applied to samples originating from low microbial biomass environments.</p>
 <p>We recently performed a study to understand the impact of decreasing microbial biomass on 16S rRNA gene sequencing experiments and evaluate the current computational strategies to control for contaminants (preprint available here).</p>
-<p>Here, we provide the compiled R Markdown document to reproduce the analysis presented in the manuscript, diveded into 4 primary sections:</p>
+<p>Here, we provide the compiled R Markdown document to reproduce the analysis presented in the manuscript, divided into 6 primary sections:</p>
 <ul>
-<li>Introduction and evaluating contaminants (this document)</li>
-<li><a href="./ControllingConatminants16S_decontam.Rmd">Removing contaminant ASVs with decontam</a></li>
-<li><a href="./ControllingConatminants16S_SourceTrackerPrep.Rmd">Removing contaminant ASVs with SourceTracker</a></li>
-<li><a href="./ControllingConatminants16S_SourceTracker.Rmd">Evaluating SourceTracker results</a></li>
+<li><a href="https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S.html">Introduction and evaluating contaminants</a></li>
+<li>Removing contaminant ASVs with filtering methods (this document)</li>
+<li><a href="https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_decontam.html">Removing contaminant ASVs with decontam</a></li>
+<li><a href="https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_SourceTrackerPrep.html">Removing contaminant ASVs with SourceTracker</a></li>
+<li><a href="https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_SourceTracker.html">Evaluating SourceTracker results</a></li>
+<li><a href="https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminantsResults.html">Final evaluation of all methods</a></li>
 </ul>
-</div>
-<div id="brief-overview-of-the-mock-microbial-dilution-series-dataset" class="section level3">
-<h3>Brief overview of the mock microbial dilution series dataset</h3>
-<p>The dataset generated for this manuscript is a dilution series of a mock microbial community. ZymoBIOMIC mock community standards was used, which consisted of eight bacterial species (<em>Pseudomonas aeruginosa</em>, <em>Escherichia coli</em>, <em>Salmonella enterica</em>, <em>Lactobacillus fermentum</em>, <em>Enterococcus faecalis</em>, <em>Staphylococcus aureus</em>, <em>Listeria monocytogenes</em>, <em>Bacillus subtilis</em>) and two fungal species (<em>Saccharomyces cerevisiae</em> and <em>Cryptococcus neoformans</em>). The mock mmicrobial community was diluted with microbial free water (Qiagen) in eight rounds of a serial three-fold dilution prior to DNA extraction.</p>
-<p>The V4 region of the 16S rRNA gene was amplified and sequenced with Illumina MiSeq. The raw sequencing data is available here. Reads were processed using DADA2 to generate amplicon sequence variants (ASVs), which were used to generate the phyloseq object used in this analysis.</p>
+<p>Here, we provide the compiled R Markdown document to reproduce the initial analysis of the mock microbial community without removing contaminants (referred to as no filter), as well as the ideal situation where all contaminants are removed (referred to as expected results). We also evaluate using the negative control as a filter, as well as a series of relative abundance filters as approached for removing contaminants from 16S rRNA gene sequencing experiments.</p>
+<p>For more information about the experimental design and preprocessing of the data, see the <a href="./ControllingContaminants16S.Rmd"><strong>Introduction and evaluating contaminants</strong></a> section. For more information on other methods to remove contaminants, see the relevant link above.</p>
 </div>
 <div id="analysis-of-the-mock-microbial-dilution-series-dataset" class="section level2">
 <h2>Analysis of the mock microbial dilution series dataset</h2>
@@ -429,9 +428,9 @@ abundance_filter_eval &lt;- function(physeq, abundance_filter){
 <p>This analysis assumes that you have the RData file and R Markdown file saved in the same directory.</p>
 <pre class="r"><code>## Load the dataset
 load(&quot;mockDilutionsPrep.RData&quot;)</code></pre>
-<p>This work outlines each step required for evaluating the impact of contaminants on 16S rRNA gene experiments with samples that have varying starting material. The conclusions from this analysis is that contamiant ASVs increase with decreasing starting material and lead to distorted microbial community profiles and overestimated alpha diversity measurements.</p>
-<p>While contaminants are prevelant in low microbial biomass samples, and potentially unavoidable, all hope is not lost. There are a few computational approaches to identify and remove contaminant sequences from 16S rRNA gene sequencing data. To see how we evauated these different methods for identifying and removing contaminants from this dataset, see: * <a href="./ControllingConatminants16S_decontam.Rmd">Removing contaminant ASVs with decontam</a> * <a href="./ControllingConatminants16S_SourceTrackerPrep.Rmd">Removing contaminant ASVs with SourceTracker</a> * <a href="./ControllingConatminants16S_SourceTracker.Rmd">Evaluating SourceTracker results</a></p>
-<p>This RMarkdown file provides the code for evaluating how unrecommended methods - removing all sequences that appear in a blank control and an abundance filter would perfrom for removing contaminants.</p>
+<p>This work outlines each step required for evaluating the impact of contaminants on 16S rRNA gene experiments with samples that have varying starting material. The conclusions from this analysis is that contaminant ASVs increase with decreasing starting material and lead to distorted microbial community profiles and overestimated alpha diversity measurements.</p>
+<p>While contaminants are prevalent in low microbial biomass samples, and potentially unavoidable, all hope is not lost. There are a few computational approaches to identify and remove contaminant sequences from 16S rRNA gene sequencing data. To see how we evaluated these different methods for identifying and removing contaminants from this data set, see: * <a href="./ControllingConatminants16S_decontam.Rmd">Removing contaminant ASVs with decontam</a> * <a href="./ControllingConatminants16S_SourceTrackerPrep.Rmd">Removing contaminant ASVs with SourceTracker</a> * <a href="./ControllingConatminants16S_SourceTracker.Rmd">Evaluating SourceTracker results</a></p>
+<p>This RMarkdown file provides the code for evaluating how unrecommended methods - removing all sequences that appear in a blank control and an abundance filter would perform for removing contaminants.</p>
 </div>
 </div>
 <div id="create-expected-results-based-on-the-known-sequences-from-the-mock-microbial-communtiy" class="section level1">
@@ -1697,10 +1696,10 @@ D8
 <p>We can also evaluate the success of removing contaminants by identifying how many contaminants were removed and remain after filtering.</p>
 <p>We will use a similar scheme that was used for evaluating SourceTracker and decontam in our manuscript:</p>
 <ul>
-<li>true_neg - ASVs correctly identified as mock community ASVs (correctly remianing int the dataset after filtering)</li>
+<li>true_neg - ASVs correctly identified as mock community ASVs (correctly remaining int the data set after filtering)</li>
 <li>false_neg - ASVs incorrectly identified as mock community ASVs (unremoved contaminants)</li>
-<li>true_pos - ASVs correctly identified as contaminant ASVs (correctly removing a contaminant ASV from the dataset)</li>
-<li>false_pos - ASVs incorrectly identified as contamiant ASVs (incorrectly removing a mock community read from the dataset)</li>
+<li>true_pos - ASVs correctly identified as contaminant ASVs (correctly removing a contaminant ASV from the data set)</li>
+<li>false_pos - ASVs incorrectly identified as contaminant ASVs (incorrectly removing a mock community read from the data set)</li>
 </ul>
 </div>
 <div id="removing-sequences-that-appear-in-a-blank-control" class="section level1">
@@ -4485,6 +4484,7 @@ rm(vars_to_rm, vars_to_keep, filter_results)</code></pre>
 <pre><code>## Warning in rm(vars_to_rm, vars_to_keep, filter_results): object
 ## 'vars_to_keep' not found</code></pre>
 <pre class="r"><code>save.image('results_filtering.RData')</code></pre>
+<p>This work demonstrates using various filtering methods for identifying and removing contaminants from a 16S rRNA gene sequencing experiment. We were able to evaluate the performance of this method since we used a dilution series of a mock microbial community, where the expected composition of the samples are known. We also evaluated more sophisticated methods for contaminant identification and removal: the decontam frequency method, which is documented <a href=".ControllingContaminants16S_decontam.Rmd">here</a> and SourceTracker, which is documented <a href=".ControllingContaminants16S_SourceTrackerPrep.Rmd">here</a>.</p>
 </div>
 
 

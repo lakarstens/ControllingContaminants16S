@@ -8,20 +8,21 @@ output: html_document
 
 We recently performed a study to understand the impact of decreasing microbial biomass on 16S rRNA gene sequencing experiments and evaluate the current computational strategies to control for contaminants (preprint available here). 
 
-We provide the compiled R Markdown documents to reproduce the analysis presented in the manuscript, divided into 4 primary sections:
-
-* [Introduction and evaluating contaminants](./ControllingConatminants16S.Rmd)
-* [Removing contaminant ASVs with decontam](./ControllingConatminants16S_decontam.Rmd)
-* [Removing contaminant ASVs with SourceTracker](./ControllingConatminants16S_SourceTrackerPrep.Rmd)
-* Evaluating SourceTracker results (this document)
+We provide the compiled R Markdown documents to reproduce the analysis presented in the manuscript, divided into 6 primary sections:
+* [Introduction and evaluating contaminants](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S.html)
+* [Removing contaminant ASVs with filtering methods](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_Filtering.html)
+* [Removing contaminant ASVs with decontam](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_decontam.html)
+* [Removing contaminant ASVs with SourceTracker](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_SourceTrackerPrep.html)
+* Evaluating SourceTracker results (this document)  
+* [Final evaluation of all methods](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminantsResults.html)
 
 Here, we provide the compiled R Markdown document to reproduce evaluating SourceTracker results for identifying and removing contaminants as presented in the manuscript. 
 
-For more information about the experimental design and preprocessing of the data, see the [**Introduction and evaluating contaminants**](./ControllingConatminants16S.Rmd) section.  For more information about setting up and using SourceTracker, see the [**Removing contaminant ASVs with SourceTracker**](.Analysis/ControllingConatminants16S_SourceTrackerPrep.Rmd) section. 
+For more information about the experimental design and preprocessing of the data, see the [**Introduction and evaluating contaminants**](./ControllingContaminants16S.Rmd) section.  For more information about setting up and using SourceTracker, see the [**Removing contaminant ASVs with SourceTracker**](.Analysis/ControllingContaminants16S_SourceTrackerPrep.Rmd) section. 
 
 ### Using SourceTracker for contaminant identification and removal
 
-SourceTracker was used to identify contaminants in a 16S rRNA sequencing experiment. More information about SourceTracker can be found on the SourceTracker [website](https://github.com/biota/sourcetracker2). SourceTracker is a bit resource intensive and can take a while to run, so the code used to run SourceTracker for this analysis is avaiable in a separate Markdown document [here](.Analysis/ControllingConatminants16S_SourceTrackerPrep.Rmd). 
+SourceTracker was used to identify contaminants in a 16S rRNA sequencing experiment. More information about SourceTracker can be found on the SourceTracker [website](https://github.com/biota/sourcetracker2). SourceTracker is a bit resource intensive and can take a while to run, so the code used to run SourceTracker for this analysis is available in a separate Markdown document [here](.Analysis/ControllingConatminants16S_SourceTrackerPrep.Rmd). 
 
 ### Theory behind SourceTracker and its application for contaminant removal
 
@@ -31,8 +32,8 @@ We tested two scenarios for recovering the mock microbial community profiles fro
 
 This R Markdown file loads in the result files from running SourceTracker and summarizes how well SourceTracker performed by:
 
-* Identifyig how much of the contaminants were removed with SourceTracker
-* Idenifying how much of the sample is cantaminants after applying SourceTracker
+* Identifying how much of the contaminants were removed with SourceTracker
+* Identifying how much of the sample is contaminants after applying SourceTracker
 * Identifying if any expected sequences were removed
 
 The output from running SourceTracker is a series of text files that each contain an otu table for each source environment. The sum of all of the ASVs over all text files sums to 1 for each sample. Thus, SourceTracker predicts the proportion of each individual ASV arising from each source. We will step through the analysis of the SourceTracker results in detail for the first set of results, and then run through the analysis of the other sets, indicating key differences.
@@ -48,6 +49,8 @@ library(reshape2)
 library(phyloseq)
 library(kableExtra)
 library(gridExtra)
+library(knitr)
+options(digits=2)
 
 # save session info (packages versions loaded)
 session <- sessionInfo()
@@ -56,9 +59,9 @@ session <- sessionInfo()
 
 ### Create functions to use in this analysis
 
-We will use a function called **compBarPlot** to display the expected mock microbial ASVs in color and unexpected contaminants sequences in gray scale. This is similar to the function created in the decontam analysis, but uses a dataframe rather than a phyloseq object. 
+We will use a function called **compBarPlot** to display the expected mock microbial ASVs in color and unexpected contaminants sequences in gray scale. This is similar to the function created in the decontam analysis, but uses a data frame rather than a phyloseq object. 
 
-We also create a function **remainCont** to calculate the percent of remianing contaminants after running SourceTracker and **mockCom** to calculate the percent of mock microbial community ASVs present in each sample. 
+We also create a function **remainCont** to calculate the percent of remaining contaminants after running SourceTracker and **mockCom** to calculate the percent of mock microbial community ASVs present in each sample. 
 
 ```{r defineFunctions}
 # Create function to plot bar plots with contaminants in grey scale and expected mock microbial sequences in color
@@ -243,7 +246,7 @@ plot_st_classes <- function(mock_taxa, recovered_otus, all_otus, st_method){
 
 ```
 ### Loading the mock microbial community information
-We created an R workspace that just contains the ASV sequences of the expected mock microbial communtiy. This will help us identify the ASVs that were correctly and incorrectly assigned to the mock microbial community. 
+We created an R work space that just contains the ASV sequences of the expected mock microbial community. This will help us identify the ASVs that were correctly and incorrectly assigned to the mock microbial community. 
 ```{r loadData}
 ## 
 # Load workspace with Mock microbial community taxa ASV identifiers
@@ -252,7 +255,7 @@ load("mock_taxa.RData")
 load("mockDilutions.RData")
 
 ```
-This dataset includes 1 object:
+This data set includes 1 object:
 mock_taxa - A list of the expected mock microbial community ASV sequences
 
 
@@ -260,7 +263,7 @@ mock_taxa - A list of the expected mock microbial community ASV sequences
 In this case, the defined sources were:  
 
 * Mock microbial community - the undiluted mock microbial community sample
-* Contamiant profiles - Contamiant profiles built by removing the expected mock microbial community ASVs  
+* Contaminant profiles - Contaminant profiles built by removing the expected mock microbial community ASVs  
 * Blank - The blank control   
 
 The results are defined by:
@@ -312,11 +315,11 @@ all_otus <- rec_otus + blank_otus + cp_otus + unk_otus
 ```
 ### Evaluation of Scenario 1, Case 1 - well defined experimental and contaminant communites
 
-To evaluate SourceTracker, we will generate a stacked bar plot of the SourceTracker predicted mock microbial communtiy profile as well as evaluate the percentage of the samples that were correctly (indicated by the community abbreviation followed by _c) and incorrectly classified (indicated by the community abbreviation followed by _i).
+To evaluate SourceTracker, we will generate a stacked bar plot of the SourceTracker predicted mock microbial community profile as well as evaluate the percentage of the samples that were correctly (indicated by the community abbreviation followed by _c) and incorrectly classified (indicated by the community abbreviation followed by _i).
 
 ### Plot classifications per sample
 
-To summarize the SourceTracker classifications, we will create stacked barplots that summarize the proportion of reads correctly and incorrectly classified as arising from the mock microbial community (mock_c for correct, mock_i for incorrect), the contaminant profile (cp_c, cp_i), the blank (blank_c, blank_i), unknown (unk_c, unk_i).   
+To summarize the SourceTracker classifications, we will create stacked bar plots that summarize the proportion of reads correctly and incorrectly classified as arising from the mock microbial community (mock_c for correct, mock_i for incorrect), the contaminant profile (cp_c, cp_i), the blank (blank_c, blank_i), unknown (unk_c, unk_i).   
 
 
 # Summarize Results as done for other methods
@@ -333,7 +336,7 @@ plot_st_classes(mock_taxa,rec_otus,all_otus,'Scenario 1, Case 1' )
 In this case, the defined sources were:  
 
 * Mock microbial community - the undiluted mock microbial community 
-* Contamiant profiles - Contamiant profiles built by removing the expected mock microbial community ASVs  
+* Contaminant profiles - Contaminant profiles built by removing the expected mock microbial community ASVs  
 * Blank - The blank control   
 
 The results are defined by:
@@ -400,7 +403,7 @@ plot_st_classes(mock_taxa,rec_otus,all_otus,'Scenario 1, Case 2' )
 ## Scenario 2, Case 3 - undefined experimental environment, well defined contaminant environments
 In this case, the defined sources were:  
 
-* Contamiant profiles - Contamiant profiles built by removing the expected mock microbial community ASVs  
+* Contaminant profiles - Contaminant profiles built by removing the expected mock microbial community ASVs  
 * Blank - The blank control   
 
 The results are defined by:
@@ -461,7 +464,7 @@ plot_st_classes(mock_taxa,rec_otus,all_otus,'Scenario 2, Case 1' )
 # Scenario 2,  Case 4 - undefined experimental environment, blank control as contaminant environment
 In this case, the defined sources were:  
 
-* Contamiant profiles - Contamiant profiles built by removing the expected mock microbial community ASVs  
+* Contaminant profiles - Contaminant profiles built by removing the expected mock microbial community ASVs  
 * Blank - The blank control   
 
 The results are defined by:
@@ -524,3 +527,4 @@ rm(vars_to_rm, vars_to_keep)
 save.image('results_sourcetracker.RData')
 
 ```
+

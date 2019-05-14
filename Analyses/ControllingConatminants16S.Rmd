@@ -44,7 +44,10 @@ library(tidyverse)
 library(RColorBrewer)
 library(reshape2)
 library(knitr)
+options(digits=2)
 library(dplyr)
+library(ggpubr)
+library(cowplot)
 
 # save session info (packages and versions loaded)
 session <- sessionInfo()
@@ -67,15 +70,17 @@ We created a function called expCompBarPlot to display the expected mock communi
   data_table$reference = FALSE
   data_table$reference[rownames(data_table) %in% exp_taxa] = TRUE
   sample_names <- sample_names(physeq)
-  data_table$id <- paste0('ASV_', 1:nrow(data_table))
+  data_table$id <- rownames(data_table)
   dilution_labels <- sample_data(physeq)$Dilutions
 
-  set.seed(444)
+  taxa <-taxa_names(physeq)
+  other_taxa <- taxa[!taxa %in% exp_taxa]
 
 # define the colors to use for reference and non-reference OTUs/ASVs
-  ref_colors <- brewer.pal(sum(data_table$reference), "Paired")
-  other_colors <- sample(grey.colors(5, start = 0.5, end = 0.9), sum(!data_table$reference), replace = TRUE)
-
+  ref_colors <- setNames(c("#1F78B4", "#A6CEE3", "#33A02C", "#B2DF8A", "#E31A1C", "#FB9A99", "#FF7F00", "#FDBF6F", "#6A3D9A"), levels(as.factor(exp_taxa)))
+set.seed(325)
+  other_colors <- setNames(c(sample(grey.colors(5, start = 0.5, end = 0.9), sum(!data_table$reference), replace = TRUE)), levels(as.factor(other_taxa)))
+  
 # add a color variable to the data table
   data_table$color <- rep(NA, nrow(data_table))
   data_table$color[data_table$reference] <- ref_colors
@@ -84,26 +89,49 @@ We created a function called expCompBarPlot to display the expected mock communi
 # reshape the data table into a ggplot-friendly format, by gathering samples into a single column called "count"
 
   color_gg <- data_table %>% select(id, sample_names, color) %>% gather("sample", "count", sample_names)
-  legend_color <- c(bright = ref_colors[2], dull = other_colors[2])
+  legend_color <- c(ref_colors,other_colors)
   data_gg <- data_table %>% gather("sample", "count", sample_names)
 
   data_gg <- inner_join(data_gg,color_gg)
 
 # create the composition bar plot
   comp_bar <- ggplot(data_gg, aes(x = sample, y = count)) +
-    geom_col(aes(fill = color, group = reference, alpha = ifelse(reference, "bright", "dull")), width = 0.7, position = position_fill()) +
-    scale_fill_identity(guide = FALSE) +
-    scale_alpha_manual(name = "Sequence type",
-                     labels = c("expected sequences", "other"),
-                     values = c(bright = 1, dull = 1),
-                     guide = guide_legend(override.aes = list(fill = c(ref_colors[4], "#AEAEAE")),
-                                          keywidth = NULL, keyheight = NULL)) +
-    labs(title = title, x = "sample", y = "Relative Abundance") +
-    theme(legend.position = "right", legend.title = element_text(size = 12),
+    geom_col(aes(fill = id, group = reference), width = 0.7, position = position_fill()) +
+    labs(x = "Dilution Series", y = "Relative Abundance") +
+    scale_fill_manual(values=legend_color) + 
+    theme(legend.position = "none",
         axis.text = element_text(size = 12),
-        axis.title = element_text(size = 16),
-        plot.title = element_text(size = 16))
-  comp_bar
+        axis.title = element_text(size = 14),
+        plot.title = element_text(size = 14))
+
+  # plot just a subset to get a reasonable sized legend
+  data_gg_subset <- data_gg %>% subset(sample == 'D6') 
+  data_gg_subset <- data_gg_subset %>% subset(count >0)
+# to do - generalize
+  data_gg_subset <- data_gg_subset %>% subset(id %in% c('ASV_1','ASV_2','ASV_10','ASV_3','ASV_4','ASV_5','ASV_6','ASV_7','ASV_8','ASV_16','ASV_12','ASV_15','ASV_18'))
+  # force order
+  data_gg_subset$id <- factor(data_gg_subset$id, c('ASV_1','ASV_2','ASV_10','ASV_3','ASV_4','ASV_5','ASV_6','ASV_7','ASV_8','ASV_16','ASV_12','ASV_15','ASV_18'))
+  legend_taxonomy <- data_gg_subset$id
+  # modifications
+    levels(legend_taxonomy) <- list(Lactobacillus = 'ASV_1',  Escherichia_Shigella = 'ASV_2' , Staphylococcus = 'ASV_10', Salmonella_ASV1 = 'ASV_3' , Bacillus = 'ASV_4',  Pseudomonas = 'ASV_5' , Listeria = 'ASV_6', Enterococcus = 'ASV_7' , Salmonella_ASV2 = 'ASV_8',  Contaminant_ASV = 'ASV_16', Contaminant_ASV = 'ASV_12' , Contaminant_ASV = 'ASV_15' , Contaminant_ASV = 'ASV_18')
+
+  
+  legend_color_subset <- legend_color[names(legend_color) %in%  data_gg_subset$id]
+  comp_bar_subset <- ggplot(data_gg_subset, aes(x = sample, y = count)) + 
+    geom_col(aes(fill = id, group = reference), width = 0.7, position = position_fill())  +
+    scale_fill_manual(values=legend_color_subset, 
+                      name = ' ',
+                      breaks =  data_gg_subset$id,
+                      labels =  legend_taxonomy)
+legend <- get_legend(comp_bar_subset)
+comp_legend <- as_ggplot(legend)
+
+
+
+
+comp_bar_components <- list(comp_bar,comp_legend)
+return(comp_bar_components)
+
 }
 
 ```
@@ -183,32 +211,46 @@ ps_norm_exp <- prune_taxa(mock_taxa,ps_norm)
 dilutionSummary <- data.frame(DilutionSeries = sample_names(ps),NumberOfReads = sample_sums(ps), PercentContaminants = 100-sample_sums(ps_norm_exp))
 
 # Create a variable to indicate the sample order of the plots
-dilutions<-c('D0','D1','D2','D3','D4','D5','D6','D7','D8', 'Blank')
+dilutions<-c('D0','D1','D2','D3','D4','D5','D6','D7','D8')
 
 # Create plots to summarize these data
 ## Plot Figure 1A - number of reads per sample across dilution series
-dilutionSummary %>% subset(DilutionSeries %in% dilutions[1:9] ) %>%
+fig_1a <- dilutionSummary %>% subset(DilutionSeries %in% dilutions[1:9] ) %>%
   ggplot(., aes(x = DilutionSeries, y = NumberOfReads)) + geom_bar(stat="identity", fill="steelblue") +
   theme_minimal() + scale_x_discrete(limits = dilutions) + 
   labs(x = "Dilution Series", y = "Number of Reads") +
-  theme(axis.text = element_text(size = 14),
-        axis.title = element_text(size = 16),
-        plot.title = element_text(size = 16))
-
+  theme(axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        plot.title = element_text(size = 14))
 
 ## Plot Figure 1B - Percent of contaminants across dilution series
-dilutionSummary %>% subset(DilutionSeries %in% dilutions[1:9] ) %>%
+fig_1b <- dilutionSummary %>% subset(DilutionSeries %in% dilutions[1:9] ) %>%
   ggplot(., aes(x = DilutionSeries, y = PercentContaminants)) + geom_point(size = 3) +
   scale_x_discrete(limits = dilutions) +   
-  labs(x = "Dilution Series", y = "Number of Reads") +
-  theme(axis.text = element_text(size = 14),
-        axis.title = element_text(size = 16),
-        plot.title = element_text(size = 16))
+  labs(x = "Dilution Series", y = "Percent Contaminants") +
+  theme(axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        plot.title = element_text(size = 14))
 
 ## Plot Figure 1C - Stacked bar plot of Mock microbial dilution series
-expCompBarPlot(ps_norm, mock_taxa, 'Initial Mock Microbial Community Dilution')  + scale_x_discrete(limits = dilutions)
+fig_1c_components <- expCompBarPlot(mock_ps_norm, mock_taxa, '') 
+fig_1c <- fig_1c_components[[1]]
+fig_1c_legend <- fig_1c_components[[2]]
 
-## Table 1 
+# create plot for manuscript
+
+figure_1 <- ggdraw() +
+  draw_plot(fig_1a, x = 0, y = .5, width = .5, height = .48) +
+  draw_plot(fig_1b, x = .5, y = .5, width = .5, height = .48) +
+  draw_plot(fig_1c, x = 0, y = 0, width = .7, height = 0.5) +
+  draw_plot(fig_1c_legend, x = .7, y = 0, width = 0.3, height = 0.5) +
+  draw_plot_label(label = c('Figure 1',"A", "B", "C"), size = 12,
+                  x = c(.75,0, 0.5, 0), y = c(1,1, 1, 0.5))
+
+figure_1
+ggsave('Fig_1.tiff', figure_1, device = 'tiff',units = 'in',  width = 6.8, height= 6, dpi = 300)
+
+## Table 1 components
 # Number of sequences per sample
 sample_sums(mock_ps)
 
@@ -233,7 +275,6 @@ rowSums(temp_genus)
 blank_ps_norm <- subset_samples(ps_norm,sample_names(ps_norm) %in% c('Blank'))
 blank_ps_norm <- prune_taxa(taxa_sums(blank_ps_norm) > 0, blank_ps_norm)
 blank_ps_norm
-# 655 unique ASVs
 
 #identify ASVs from mock community present in blank
 table(taxa_names(blank_ps_norm) %in% mock_taxa)
@@ -252,7 +293,6 @@ blank_ps_norm_melt %>% filter(Abundance > 5) %>% select(Abundance, Family, Genus
 blank_ps_norm_melt %>% filter(Abundance <= 5) %>% filter(Abundance > 1) %>% select(Abundance, Family, Genus)
 
 ```
-
 
 ### Evaluating contaminant ASVs
 
@@ -374,7 +414,6 @@ plot_richness(mock_ps, measure = c('Observed','Shannon', 'InvSimpson') )
 
 # calculate the difference between the observed and actual alpha diversity measures 
 max_diff <- ((mock_alpha[9,] - mock_alpha_pure) / mock_alpha_pure) 
-
 
 ```
 Finally, we save the workspace image so that we can revisit the analysis if needed and so that we can easily load the processed data for the next steps of analysis.

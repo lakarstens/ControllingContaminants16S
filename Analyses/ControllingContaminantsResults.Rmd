@@ -19,7 +19,7 @@ We recently performed a study to understand the impact of decreasing microbial b
 Here, we provide the compiled R Markdown document to reproduce the analysis presented in the manuscript, divided into 6 primary sections:
 
 * [Introduction and evaluating contaminants](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S.html)
-* [Removing contaminant ASVs with filtering methods](./ControllingContaminants16S_filtering.Rmd)
+* [Removing contaminant ASVs with filtering methods](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_Filtering.html)
 * [Removing contaminant ASVs with decontam](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_decontam.html)
 * [Removing contaminant ASVs with SourceTracker](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_SourceTrackerPrep.html)
 * [Evaluating SourceTracker results](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_SourceTracker.html)

@@ -482,18 +482,3 @@ figure_S2 <- ggdraw() +
                   x = c(.75), y = c(1), hjust = 0)
 figure_S2
 ```
-
-### ASVs removed
-Information in Supplemental Table 3
-
-```{r}
-results_contamiants_removed <- results_all %>%
-  select(contaminants_removed, method, method_type, sample_names) %>%
-  spread(.,sample_names,contaminants_removed)
-
-results_mock_ASVs_removed <- results_all %>%
-  select( mock_ASVs_removed, method, method_type, sample_names) %>%
-  spread(.,sample_names,mock_ASVs_removed)
-
-
-```

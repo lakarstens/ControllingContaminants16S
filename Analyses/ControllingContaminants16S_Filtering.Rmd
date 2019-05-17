@@ -23,7 +23,7 @@ Here, we provide the compiled R Markdown document to reproduce the analysis pres
 
 Here, we provide the compiled R Markdown document to reproduce the initial analysis of the mock microbial community without removing contaminants (referred to as no filter), as well as the ideal situation where all contaminants are removed (referred to as expected results). We also evaluate using the negative control as a filter, as well as a series of relative abundance filters as approached for removing contaminants from 16S rRNA gene sequencing experiments.
 
-For more information about the experimental design and preprocessing of the data, see the [**Introduction and evaluating contaminants**](./ControllingContaminants16S.Rmd) section. For more information on other methods to remove contaminants, see the relevant link above.
+For more information about the experimental design and preprocessing of the data, see the [**Introduction and evaluating contaminants**](./ControllingContaminants16S.html) section. For more information on other methods to remove contaminants, see the relevant link above.
 
 ## Analysis of the mock microbial dilution series dataset
 
@@ -40,11 +40,13 @@ library(ggplot2)
 library(tidyverse)
 library(RColorBrewer)
 library(reshape2)
+library(dplyr)
 library(knitr)
 options(digits=2)
-library(dplyr)
 library(kableExtra)
 library(gridExtra)
+library(ggpubr)
+
 # save session info (packages and versions loaded)
 session <- sessionInfo()
 
@@ -54,6 +56,8 @@ session <- sessionInfo()
 
 We created a function called expCompBarPlot to display the expected mock microbial ASVs in color and unexpected contaminants sequences in grayscale. 
 ```{r defineFunctions }
+# Create function to plot bar plots with contaminants in grey scale and expected mock microbial sequences in color
+
 # Create function to plot bar plots with contaminants in grey scale and expected mock microbial sequences in color
 
  expCompBarPlot <- function(physeq, exp_taxa, title){
@@ -98,11 +102,11 @@ We created a function called expCompBarPlot to display the expected mock microbi
                      guide = guide_legend(override.aes = list(fill = c(ref_colors[4], "#AEAEAE")),
                                           keywidth = NULL, keyheight = NULL)) +
     labs(title = title, x = "Sample", y = "Relative Abundance") +
-    theme(legend.position = "right", legend.title = element_text(size = 12),
-        axis.text = element_text(size = 12),
-        axis.title = element_text(size = 16),
-        plot.title = element_text(size = 16))
-  comp_bar
+    theme(legend.position = "right", legend.title = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12),
+        plot.title = element_text(size = 12))
+  return(comp_bar)
  }
 
 # Define functions to evaluate filter performance
@@ -134,12 +138,12 @@ eval_filter <- function(physeq, mock_taxa, recovered_otus, removed_otus, filter_
       ggtitle(paste0('Sequence classification for \n  ', filter_method)) + 
       theme(legend.position = "right", legend.title = element_text(size = 12),
         axis.text = element_text(size = 12),
-        axis.title = element_text(size = 16),
-        plot.title = element_text(size = 16))
+        axis.title = element_text(size = 12),
+        plot.title = element_text(size = 12))
 
   compositionPlot <- expCompBarPlot(physeq,mock_taxa,paste0('Recovered profile after \n ',filter_method))
   # plot figures
-  grid.arrange(compositionPlot, classificationPlot, ncol = 2)
+  grid.arrange(compositionPlot[[1]], compositionPlot[[2]],classificationPlot, ncol = 3)
 }
 
 filter_results <- function(physeq_original, physeq_filter, physeq_removed, mock_taxa,filter_method){
@@ -258,9 +262,9 @@ load("mockDilutionsPrep.RData")
 This work outlines each step required for evaluating the impact of contaminants on 16S rRNA gene experiments with samples that have varying starting material. The conclusions from this analysis is that contaminant ASVs increase with decreasing starting material and lead to distorted microbial community profiles and overestimated alpha diversity measurements. 
 
 While contaminants are prevalent in low microbial biomass samples, and potentially unavoidable, all hope is not lost. There are a few computational approaches to identify and remove contaminant sequences from 16S rRNA gene sequencing data. To see how we evaluated these different methods for identifying and removing contaminants from this data set, see: 
-* [Removing contaminant ASVs with decontam](./ControllingConatminants16S_decontam.Rmd)
-* [Removing contaminant ASVs with SourceTracker](./ControllingConatminants16S_SourceTrackerPrep.Rmd)
-* [Evaluating SourceTracker results](./ControllingConatminants16S_SourceTracker.Rmd)
+* [Removing contaminant ASVs with decontam](./ControllingConatminants16S_decontam.html)
+* [Removing contaminant ASVs with SourceTracker](./ControllingConatminants16S_SourceTrackerPrep.html)
+* [Evaluating SourceTracker results](./ControllingConatminants16S_SourceTracker.html)
 
 This RMarkdown file provides the code for evaluating how unrecommended methods - removing all sequences that appear in a blank control and an abundance filter would perform for removing contaminants.
 
@@ -376,4 +380,4 @@ rm(vars_to_rm, vars_to_keep, filter_results)
 save.image('results_filtering.RData')
 ```
 
-This work demonstrates using various filtering methods for identifying and removing contaminants from a 16S rRNA gene sequencing experiment. We were able to evaluate the performance of this method since we used a dilution series of a mock microbial community, where the expected composition of the samples are known. We also evaluated more sophisticated methods for contaminant identification and removal: the decontam frequency method, which is documented [here](.ControllingContaminants16S_decontam.Rmd) and SourceTracker, which is documented [here](.ControllingContaminants16S_SourceTrackerPrep.Rmd). 
+This work demonstrates using various filtering methods for identifying and removing contaminants from a 16S rRNA gene sequencing experiment. We were able to evaluate the performance of this method since we used a dilution series of a mock microbial community, where the expected composition of the samples are known. We also evaluated more sophisticated methods for contaminant identification and removal: the decontam frequency method, which is documented [here](.ControllingContaminants16S_decontam.html) and SourceTracker, which is documented [here](.ControllingContaminants16S_SourceTrackerPrep.html). 

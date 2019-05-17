@@ -6,16 +6,16 @@ output: html_document
 ## Introduction
 We recently performed a study to understand the impact of decreasing microbial biomass on 16S rRNA gene sequencing experiments and evaluate the current computational strategies to control for contaminants (preprint available here). 
 
-Here, we provide the compiled R Markdown document to reproduce the analysis presented in the manuscript, divided into 6 primary sections:
+Here, we provide the compiled R Markdown document to reproduce the analysis presented in the manuscript, divided into 6 primary sections:  
 
 * [Introduction and evaluating contaminants](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S.html)
 * [Removing contaminant ASVs with filtering methods](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_Filtering.html)
-* Removing contaminant ASVs with decontam(this document)
+* Removing contaminant ASVs with decontam (this document)
 * [Removing contaminant ASVs with SourceTracker](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_SourceTrackerPrep.html)
 * [Evaluating SourceTracker results](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminants16S_SourceTracker.html)
 * [Final evaluation of all methods](https://lakarstens.github.io/ControllingContaminants16S/Analyses/ControllingContaminantsResults.html)  
 
-For more information about the experimental design and preprocessing of the data, see the [**Introduction and evaluating contaminants**](./ControllingConatminants16S.Rmd) section.  
+For more information about the experimental design and preprocessing of the data, see the [**Introduction and evaluating contaminants**](./ControllingConatminants16S.html) section.  
 
 ## Remove contaminant ASVs with decontam
 Decontam is an R package developed specifically to identify and remove contaminants from 16S rRNA gene sequencing experiments using a simple statistical approach. See the preprint [here](https://www.biorxiv.org/content/early/2017/11/17/221499) and tutorials [here](https://benjjneb.github.io/decontam/). 
@@ -231,6 +231,58 @@ customPalette <- c('#969696','#bdbdbd','#1B9E77', '#D95F02')
 
 }
 
+# Create function to plot bar plots with contaminants in grey scale and expected mock microbial sequences in color
+
+ expCompBarPlot <- function(physeq, exp_taxa, title){
+   ## physeq - phyloseq object that will be plotted
+   ## exp_taxa - taxa that are expected to be in the mock community 
+   ## title - title for plot
+#set up data_table
+  data_table <- as.data.frame(t(physeq@otu_table))
+
+  data_table$reference = FALSE
+  data_table$reference[rownames(data_table) %in% exp_taxa] = TRUE
+  sample_names <- sample_names(physeq)
+  data_table$id <- paste0('ASV_', 1:nrow(data_table))
+  dilution_labels <- sample_data(physeq)$Dilutions
+
+  set.seed(444)
+
+# define the colors to use for reference and non-reference OTUs/ASVs
+  ref_colors <- brewer.pal(sum(data_table$reference), "Paired")
+  other_colors <- sample(grey.colors(5, start = 0.5, end = 0.9), sum(!data_table$reference), replace = TRUE)
+
+# add a color variable to the data table
+  data_table$color <- rep(NA, nrow(data_table))
+  data_table$color[data_table$reference] <- ref_colors
+  data_table$color[!data_table$reference] <- other_colors
+
+# reshape the data table into a ggplot-friendly format, by gathering samples into a single column called "count"
+
+  color_gg <- data_table %>% select(id, sample_names, color) %>% gather("sample", "count", sample_names)
+  legend_color <- c(bright = ref_colors[2], dull = other_colors[2])
+  data_gg <- data_table %>% gather("sample", "count", sample_names)
+
+  data_gg <- inner_join(data_gg,color_gg)
+
+# create the composition bar plot
+  comp_bar <- ggplot(data_gg, aes(x = sample, y = count)) +
+    geom_col(aes(fill = color, group = reference, alpha = ifelse(reference, "bright", "dull")), width = 0.7, position = position_fill()) +
+    scale_fill_identity(guide = FALSE) +
+    scale_alpha_manual(name = "Sequence type",
+                     labels = c("expected", "other"),
+                     values = c(bright = 1, dull = 1),
+                     guide = guide_legend(override.aes = list(fill = c(ref_colors[4], "#AEAEAE")),
+                                          keywidth = NULL, keyheight = NULL)) +
+    labs(title = title, x = "Sample", y = "Relative Abundance") +
+    theme(legend.position = "right", legend.title = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12),
+        plot.title = element_text(size = 12))
+  comp_bar
+ }
+
+# create a function to write out summary table
 summary_table <- function(results, thr){
     caption_text = paste0('Decontam frequency method, threshold = ', thr, ' summary')
     drop_col <- c('true_neg','true_pos','false_neg','false_pos','method')
@@ -278,7 +330,7 @@ expCompBarPlot(ps.noncontam.freq, mock_taxa, 'Contaminant removed, Decontam (fre
 ```
 
 
-This work demonstrates using the frequency method implemented in decontam for identifying and removing contaminants from a 16S rRNA gene sequencing experiment. We were able to evaluate the performance of this method since we used a dilution series of a mock microbial community, where the expected composition of the samples are known. Decontam is one analytical method for identifying and removing contaminants from 16S rRNA gene sequencing data. We also evaluated using SourceTracker, which is documented [here](.ControllingContaminants16S_SourceTrackerPrep.Rmd). 
+This work demonstrates using the frequency method implemented in decontam for identifying and removing contaminants from a 16S rRNA gene sequencing experiment. We were able to evaluate the performance of this method since we used a dilution series of a mock microbial community, where the expected composition of the samples are known. Decontam is one analytical method for identifying and removing contaminants from 16S rRNA gene sequencing data. We also evaluated using SourceTracker, which is documented [here](.ControllingContaminants16S_SourceTrackerPrep.html). 
 
 ```{r}
 vars_to_keep <- ls(pattern = 'results')

@@ -100,9 +100,9 @@ set.seed(325)
     labs(x = "Dilution Series", y = "Relative Abundance") +
     scale_fill_manual(values=legend_color) + 
     theme(legend.position = "none",
-        axis.text = element_text(size = 12),
-        axis.title = element_text(size = 14),
-        plot.title = element_text(size = 14))
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12),
+        plot.title = element_text(size = 12))
 
   # plot just a subset to get a reasonable sized legend
   data_gg_subset <- data_gg %>% subset(sample == 'D6') 
@@ -219,18 +219,18 @@ fig_1a <- dilutionSummary %>% subset(DilutionSeries %in% dilutions[1:9] ) %>%
   ggplot(., aes(x = DilutionSeries, y = NumberOfReads)) + geom_bar(stat="identity", fill="steelblue") +
   theme_minimal() + scale_x_discrete(limits = dilutions) + 
   labs(x = "Dilution Series", y = "Number of Reads") +
-  theme(axis.text = element_text(size = 12),
-        axis.title = element_text(size = 14),
-        plot.title = element_text(size = 14))
+  theme(axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12),
+        plot.title = element_text(size = 12))
 
 ## Plot Figure 1B - Percent of contaminants across dilution series
 fig_1b <- dilutionSummary %>% subset(DilutionSeries %in% dilutions[1:9] ) %>%
   ggplot(., aes(x = DilutionSeries, y = PercentContaminants)) + geom_point(size = 3) +
   scale_x_discrete(limits = dilutions) +   
   labs(x = "Dilution Series", y = "Percent Contaminants") +
-  theme(axis.text = element_text(size = 12),
-        axis.title = element_text(size = 14),
-        plot.title = element_text(size = 14))
+  theme(axis.text = element_text(size = 10),
+        axis.title = element_text(size = 12),
+        plot.title = element_text(size = 12))
 
 ## Plot Figure 1C - Stacked bar plot of Mock microbial dilution series
 fig_1c_components <- expCompBarPlot(mock_ps_norm, mock_taxa, '') 
@@ -244,11 +244,11 @@ figure_1 <- ggdraw() +
   draw_plot(fig_1b, x = .5, y = .5, width = .5, height = .48) +
   draw_plot(fig_1c, x = 0, y = 0, width = .7, height = 0.5) +
   draw_plot(fig_1c_legend, x = .7, y = 0, width = 0.3, height = 0.5) +
-  draw_plot_label(label = c('Figure 1',"A", "B", "C"), size = 12,
-                  x = c(.75,0, 0.5, 0), y = c(1,1, 1, 0.5))
+  draw_plot_label(label = c("A", "B", "C"), size = 12,
+                  x = c(0, 0.5, 0), y = c(1, 1, 0.5))
 
 figure_1
-ggsave('Fig_1.tiff', figure_1, device = 'tiff',units = 'in',  width = 6.8, height= 6, dpi = 300)
+ggsave('mSystems00290-19_Figure_1.tiff', figure_1, device = 'tiff',units = 'in',  width = 6.8, height= 6, dpi = 300)
 
 ## Table 1 components
 # Number of sequences per sample

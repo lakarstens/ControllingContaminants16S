@@ -1,6 +1,6 @@
 ## Controlling Contaminants in 16S rRNA Gene Sequencing Experiments
 
-We recently performed a study to understand the impact of decreasing microbial biomass on 16S rRNA gene sequencing experiments and evaluate the current computational strategies to control for contaminants (preprint available [here](https://www.biorxiv.org/content/early/2018/05/25/329854)).
+We recently performed a study to understand the impact of decreasing microbial biomass on 16S rRNA gene sequencing experiments and evaluate the current computational strategies to control for contaminants (available [here](https://msystems.asm.org/content/4/4/e00290-19)).
 
 This repository contains the compiled R Markdown documents to reproduce the analysis presented in the manuscript, divided into 6 primary sections:
 

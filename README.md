@@ -15,4 +15,4 @@ We hope that this will serve as a resource and tutorial for those wishing to use
 
 We have a Binder so that the code in this repository can be run without having to install R/RStudio and all associated packages used. To access, click the Launch Binder logo below (it may take a bit to load).
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/lakarstens/ControllingContaminants16S/master)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/lakarstens/ControllingContaminantsBinder/master)

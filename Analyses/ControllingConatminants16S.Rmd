@@ -34,7 +34,7 @@ The V4 region of the 16S rRNA gene was amplified and sequenced with Illumina MiS
 
 This analysis uses many open source packages that are available on CRAN and Bioconductor.
 
-To run this analysis yourself, download the [supplemental material](add link) along with the RMarkdown file. Save these files in the same directory on your computer. 
+To run this analysis yourself, download the [supplemental material](https://msystems.asm.org/content/4/4/e00290-19) along with the RMarkdown file. Save these files in the same directory on your computer. 
 
 ```{r set workspace, message=FALSE}
 # load libraries

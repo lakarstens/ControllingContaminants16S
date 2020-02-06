@@ -56,7 +56,6 @@ session <- sessionInfo()
 
 We created a function called expCompBarPlot to display the expected mock microbial ASVs in color and unexpected contaminants sequences in grayscale. 
 ```{r defineFunctions }
-# Create function to plot bar plots with contaminants in grey scale and expected mock microbial sequences in color
 
 # Create function to plot bar plots with contaminants in grey scale and expected mock microbial sequences in color
 
@@ -108,8 +107,10 @@ We created a function called expCompBarPlot to display the expected mock microbi
         plot.title = element_text(size = 12))
   return(comp_bar)
  }
+ ```
 
-# Define functions to evaluate filter performance
+Define functions to evaluate filter performance
+```{r}
 eval_filter <- function(physeq, mock_taxa, recovered_otus, removed_otus, filter_method){
   #  % of mock community ASVs correctly classified as mock community ASVs 
   true_neg <- rowSums(recovered_otus[,colnames(recovered_otus) %in% mock_taxa])
@@ -145,7 +146,10 @@ eval_filter <- function(physeq, mock_taxa, recovered_otus, removed_otus, filter_
   # plot figures
   grid.arrange(compositionPlot[[1]], compositionPlot[[2]],classificationPlot, ncol = 3)
 }
+```
+Define filter function
 
+```{r}
 filter_results <- function(physeq_original, physeq_filter, physeq_removed, mock_taxa,filter_method){
   ## physeq_original <- the original phyloseq object containing actual counts
   ## physeq_filter <- the filtered phyloseq object containing actual counts
@@ -206,7 +210,9 @@ filter_results <- function(physeq_original, physeq_filter, physeq_removed, mock_
 
   return(results)
   }
-
+```
+Define summary function table
+```{r}
 summary_table <- function(results, filter_method){
   
   caption_text = paste0(filter_method,' summary')
@@ -220,7 +226,9 @@ summary_table <- function(results, filter_method){
     group_rows("Mock Abundances after Contaminant Removal", 8,ncol(results) - 2)
 
 }
-# define function for evaluateing abundance filtering
+```
+define function for evaluating abundance filtering
+```{r}
 abundance_filter_eval <- function(physeq, abundance_filter){
   # normalize physeq to 100
   physeq_norm <- transform_sample_counts(physeq,function(x) 100* x/sum(x))
